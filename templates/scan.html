@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Сканер{% endblock %}
+{% block content %}
+<h1>📷 Сканер этикеток</h1>
+<div class="scan-box">
+  <video id="scan-video" muted playsinline></video>
+  <div class="scan-frame" aria-hidden="true"></div>
+</div>
+<p id="scan-status" class="small muted">Запуск камеры…</p>
+<form id="scan-manual" class="filters">
+  <input name="number" inputmode="numeric" placeholder="…или номер катушки" autocomplete="off">
+  <button class="btn">Найти</button>
+</form>
+<script src="{{ url_for('static', filename='vendor/jsqr/jsQR.js') }}"></script>
+<script src="{{ url_for('static', filename='scan.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<title>Филамент в наличии</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main>
+<h1>🧵 Филамент в наличии <span class="small muted" style="font-weight: 400">· {{ total }} катушек</span></h1>
+{% if not groups %}<p class="empty">Сейчас ничего нет.</p>{% endif %}
+{% for material, items in groups %}
+<h2>{{ material }} <span class="small muted">({{ items|length }})</span></h2>
+<div class="show-grid">
+  {% for it in items %}
+  <div class="show-item">
+    <span class="swatch big" style="background: {{ it.swatch }}"></span>
+    <div><b>{{ it.color or 'без названия' }}</b>
+      <div class="small muted">{{ it.manufacturer }}{% if it.material != material %} · {{ it.material }}{% endif %}</div>
+      <div class="bar"><span style="width: {{ it.pct }}%"></span></div>
+      <div class="small muted">{{ it.level }}</div></div>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+</main>
+</body>
+</html>

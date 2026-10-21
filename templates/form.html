@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Новая катушка' if new else 'Редактирование' }}{% endblock %}
+{% block content %}
+<h1>{{ 'Новая катушка' if new else 'Редактирование' }}</h1>
+{% if new and templates %}
+<div class="templates">
+  <span class="small muted">Из шаблона:</span>
+  {% for tpl in templates %}
+  <span class="tpl{{ ' on' if tpl.id == template_id else '' }}">
+    <a href="{{ url_for('spool_new', template=tpl.id) }}">{{ tpl.name }}</a>
+    <form method="post" action="{{ url_for('template_delete', template_id=tpl.id) }}" class="inline"
+          data-confirm="Удалить шаблон «{{ tpl.name }}»?">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linkbtn" title="Удалить шаблон">✕</button>
+    </form>
+  </span>
+  {% endfor %}
+</div>
+{% endif %}
+<form class="spool-form" method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <fieldset>
+    <legend>Пластик</legend>
+    <label>№ (наклейка на катушке)<input name="number" value="{{ s.number or '' }}" inputmode="numeric" placeholder="необязательно"></label>
+    <label>Производитель*<input name="manufacturer" value="{{ s.manufacturer or '' }}" required list="mf">
+      <datalist id="mf">{% for m in known_manufacturers() %}<option value="{{ m }}">{% endfor %}</datalist>
+    </label>
+    <label>Тип*
+      <input name="material" value="{{ s.material or '' }}" required list="mats">
+      <datalist id="mats">{% for m in materials %}<option value="{{ m }}">{% endfor %}</datalist>
+    </label>
+    <label>Цвет<input name="color_name" value="{{ s.color_name or '' }}" placeholder="напр. Чёрный матовый"></label>
+    <label>Образец цвета<input type="color" name="color_hex" value="{{ s.color_hex or '#888888' }}"></label>
+    <label>Диаметр, мм<input name="diameter" value="{{ s.diameter|field_num(1.75) }}" inputmode="decimal"></label>
+  </fieldset>
+  <fieldset>
+    <legend>Вес и цена</legend>
+    <label>Вес пластика, г<input name="weight_total" value="{{ s.weight_total|field_num(1000) }}" inputmode="decimal"></label>
+    <label>Остаток, г<input name="weight_left" value="{{ s.weight_left|field_num }}" placeholder="= весу пластика" inputmode="decimal"></label>
+    <label>Цена, ₽<input name="price" value="{{ s.price|field_num }}" inputmode="decimal"></label>
+  </fieldset>
+  <fieldset>
+    <legend>Покупка</legend>
+    <label>Ссылка на покупку<input type="url" name="purchase_url" value="{{ s.purchase_url or '' }}" placeholder="https://"></label>
+    <label>Дата покупки<input type="date" name="purchase_date" value="{{ s.purchase_date or '' }}"></label>
+    <label>Дата вскрытия<input type="date" name="opened_date" value="{{ s.opened_date or '' }}"></label>
+  </fieldset>
+  <fieldset>
+    <legend>Фото и заметки</legend>
+    <label class="wide">Важно — видно на карточке<input name="alert" value="{{ s.alert or '' }}" maxlength="200" placeholder="напр. «не лезет в CFS», «сломанная катушка»"></label>
+    <label>Место хранения<input name="location" value="{{ s.location or '' }}" list="locs" placeholder="полка, сухобокс…">
+      <datalist id="locs">{% for m in known_locations() %}<option value="{{ m }}">{% endfor %}</datalist></label>
+    {% if s.photo %}
+      <div class="current-photo"><img src="{{ url_for('thumb', name=s.photo) }}" alt="">
+        <label class="check"><input type="checkbox" name="remove_photo" value="1"> удалить фото</label></div>
+    {% endif %}
+    <label>{{ 'Заменить фото' if s.photo else 'Фото' }}<input type="file" name="photo" accept="image/*"></label>
+    <label class="wide">Заметки<textarea name="notes" rows="3" placeholder="Температура, настройки, впечатления…">{{ s.notes or '' }}</textarea></label>
+  </fieldset>
+  <div class="actions">
+    <button class="btn primary">Сохранить</button>
+    <a class="btn" href="{{ url_for('spool_detail', spool_id=s.id) if not new else list_url() }}">Отмена</a>
+  </div>
+</form>
+{% endblock %}

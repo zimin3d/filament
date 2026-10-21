@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Вход{% endblock %}
+{% block content %}
+<form class="login" method="post" action="{{ url_for('login', next=request.args.get('next')) }}" autocomplete="on">
+  <h1>Вход</h1>
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  {% if many %}<label>Имя<input name="user" autocomplete="username" autocapitalize="none" required></label>{% endif %}
+  <label>Пароль
+    <span class="pw-wrap">
+      <input type="password" name="password" id="pw" {% if not many %}autofocus {% endif %}required autocomplete="current-password">
+      <button type="button" class="pw-toggle" aria-label="Показать пароль" aria-pressed="false">👁</button>
+    </span>
+  </label>
+  <button class="btn primary">Войти</button>
+  <p class="small muted">{% if viewer_mode %}Пароль для просмотра или пароль администратора.{% else %}Вход нужен только для изменений.{% endif %}</p>
+</form>
+{% endblock %}

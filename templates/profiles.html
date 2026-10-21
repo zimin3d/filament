@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Настройки печати{% endblock %}
+{% block content %}
+<h1>Настройки печати</h1>
+<p class="small muted">Показываются на странице катушки. Настройки для производителя важнее общих для материала;
+  «CR-PETG», «PETG+» и т.п. берут настройки PETG, если своих нет.</p>
+<div class="table-wrap">
+<table class="tbl">
+  <thead><tr><th>Материал</th><th>Производитель</th>{% for k, label in fields %}<th>{{ label }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for p in profiles %}
+    <tr>
+      <td class="nowrap"><b>{% if is_admin %}<a href="{{ url_for('profile_edit', pid=p.id) }}">{{ p.material }}</a>{% else %}{{ p.material }}{% endif %}</b></td>
+      <td>{{ p.manufacturer or 'все' }}</td>
+      {% for k, _ in fields %}<td class="{{ 'small' if k == 'notes' else 'nowrap' }}">{{ p[k] }}</td>{% endfor %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if is_admin %}<a class="btn primary" href="{{ url_for('profile_edit') }}">+ Настройки</a>{% endif %}
+{% endblock %}

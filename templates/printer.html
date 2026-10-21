@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Обслуживание принтера{% endblock %}
+{% block content %}
+<h1>🔧 Обслуживание принтера</h1>
+<section class="stats">
+  <div><span class="num">{{ '%.1f'|format(hours) }} ч</span><span class="lbl">наработка по журналу печатей ({{ jobs_count }})</span></div>
+  <div><span class="num">{{ items|selectattr('due')|list|length }}</span><span class="lbl">пора сделать</span></div>
+</section>
+<p class="small muted">Часы считаются по записанным печатям (вручную, из файла слайсера, от агента K2) и по загруженной истории принтера. Интервалы — ориентиры, подстройте под себя.
+  {% if is_admin %}<a href="{{ url_for('import_history') }}">Загрузить историю печатей с принтера</a>{% endif %}</p>
+
+<div class="table-wrap"><table class="tbl">
+  <thead><tr><th>Что</th><th>Периодичность</th><th>Последний раз</th><th class="bar-col">Осталось</th>{% if is_admin %}<th></th>{% endif %}</tr></thead>
+  <tbody>
+  {% for m in items %}
+  {% if is_admin and edit == m.id %}
+    <tr><td colspan="5">
+      <form method="post" class="weigh" style="margin: 0">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ m.id }}">
+        <label style="flex: 2 1 240px">Что<input name="name" value="{{ m.name }}" required></label>
+        <label>Раз в, часов<input name="every_hours" value="{{ m.every_hours|field_num }}" inputmode="decimal"></label>
+        <label>Раз в, дней<input name="every_days" value="{{ m.every_days or '' }}" inputmode="numeric"></label>
+        <label style="flex: 1 1 100%">Заметка<input name="notes" value="{{ m.notes }}"></label>
+        <button class="btn primary" name="action" value="save">Сохранить</button>
+        <a class="btn" href="{{ url_for('printer') }}">Отмена</a>
+        <button class="btn danger" name="action" value="delete" formnovalidate data-confirm="Удалить пункт?">Удалить</button>
+      </form></td></tr>
+  {% else %}
+    <tr class="{{ 'row-error' if m.due else '' }}">
+      <td><b>{{ m.name }}</b>{% if m.notes %}<div class="small muted">{{ m.notes }}</div>{% endif %}</td>
+      <td class="nowrap small">{% if m.every_hours %}{{ m.every_hours|field_num }} ч{% endif %}{% if m.every_hours and m.every_days %} или {% endif %}{% if m.every_days %}{{ m.every_days }} дн{% endif %}</td>
+      <td class="nowrap small">{{ m.last_date|ru_date }}</td>
+      <td class="bar-col"><div class="hbar maint{{ ' due' if m.due else ' soon' if m.soon else '' }}"><span style="width: {{ m.pct }}%"></span></div>
+        <div class="small {{ 'err' if m.due else 'muted' }}">{% if m.due %}пора{% else %}{% if m.hours_left is defined %}{{ '%.0f'|format(m.hours_left) }} ч{% endif %}{% if m.hours_left is defined and m.days_left is defined %} / {% endif %}{% if m.days_left is defined %}{{ m.days_left }} дн{% endif %}{% endif %}</div></td>
+      {% if is_admin %}<td class="nowrap">
+        <form method="post" class="inline"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ m.id }}">
+          <button class="btn{{ ' primary' if m.due else '' }}" name="action" value="done">✓ Сделано</button></form>
+        <a class="linkbtn" style="color: var(--accent)" href="{{ url_for('printer', edit=m.id) }}">изменить</a></td>{% endif %}
+    </tr>
+  {% endif %}
+  {% endfor %}
+  </tbody>
+</table></div>
+
+{% if is_admin %}
+<form method="post" class="weigh">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <b>Добавить пункт</b>
+  <label style="flex: 2 1 240px">Что<input name="name" required placeholder="напр. Замена PTFE-трубки"></label>
+  <label>Раз в, часов<input name="every_hours" inputmode="decimal"></label>
+  <label>Раз в, дней<input name="every_days" inputmode="numeric"></label>
+  <label style="flex: 1 1 100%">Заметка<input name="notes"></label>
+  <button class="btn primary" name="action" value="add">Добавить</button>
+</form>
+{% endif %}
+{% endblock %}

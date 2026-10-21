@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Журнал изменений{% endblock %}
+{% block content %}
+<h1>Журнал изменений</h1>
+<p class="small muted">{% if spool %}Одна катушка · <a href="{{ url_for('history') }}">все</a> · {% endif %}Отменить можно последнее действие с каждой катушкой; отмена удаления возвращает катушку со всей историей и фото.</p>
+{% if not entries %}<p class="empty">Пока пусто.</p>{% else %}
+<div class="table-wrap">
+<table class="tbl">
+  <thead><tr><th>Когда</th><th>Кто</th><th>Действие</th><th>Катушка</th><th>Что изменилось</th><th></th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+    <tr class="{{ 'row-dup' if e.undone else '' }}">
+      <td class="nowrap small">{{ e.ts[8:10] }}.{{ e.ts[5:7] }} {{ e.ts[11:16] }}</td>
+      <td class="nowrap small">{{ e.user or '—' }}</td>
+      <td class="nowrap">{{ e.action }}{% if e.undone %} <span class="muted">(отменено)</span>{% endif %}</td>
+      <td>{% if e.exists %}<a href="{{ url_for('spool_detail', spool_id=e.spool_id) }}">{{ e.title }}</a>{% else %}{{ e.title }}{% endif %}</td>
+      <td class="small">{% for label, old, new in e.changes[:6] %}<div class="chg">{{ label }}: <s>{{ old|field_num('—') if old not in (none, '') else '—' }}</s> → {{ new|field_num('—') if new not in (none, '') else '—' }}</div>{% endfor %}
+        {% if e.changes|length > 6 %}<span class="muted">и ещё {{ e.changes|length - 6 }}</span>{% endif %}</td>
+      <td>{% if e.undoable %}<form method="post" class="inline" data-confirm="Отменить «{{ e.action }}»?">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ e.id }}">
+        <button class="btn">↶ Отменить</button></form>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

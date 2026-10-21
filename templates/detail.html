@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}{% if s.number %}№{{ s.number }} {% endif %}{{ s.manufacturer }} {{ s.material }} {{ s.color_name }}{% endblock %}
+{% block content %}
+<article class="detail">
+  <div class="photo" style="--c: {{ s.color_hex }}">
+    {% if s.photo %}<a href="{{ url_for('uploaded', name=s.photo) }}" target="_blank"><img src="{{ url_for('uploaded', name=s.photo) }}" alt="Фото катушки"></a>
+    {% else %}<div class="nophoto">нет фото</div>{% endif %}
+  </div>
+  <div class="info">
+    <h1><span class="swatch big" style="background: {{ s.swatch }}"></span>{{ s.color_name or 'Без названия' }}{% if s.number %} <span class="num-tag inline">№{{ s.number }}</span>{% endif %}</h1>
+    <p class="sub">{{ s.manufacturer }} · <b>{{ s.material }}</b> · {{ s.diameter }} мм · <span class="pill status-{{ s.status }}">{{ s.status_label }}</span></p>
+
+    {% if s.alert %}<div class="alert-box">⚠ {{ s.alert }}</div>{% endif %}
+    <div class="bar big"><span style="width: {{ s.percent_left }}%"></span></div>
+    <p class="small">Осталось {{ s.weight_left|grams }} из {{ s.weight_total|grams }} ({{ s.percent_left }}%){% if s.meters_left %} · {{ s.meters_left|meters }}{% endif %}</p>
+    {% if is_admin %}
+    <div id="spool-left" data-left="{{ s.weight_left }}" hidden></div>
+    <form class="weigh" id="weigh" method="post" action="{{ url_for('spool_weigh', spool_id=s.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <b>Взвесить</b>
+      <label>На весах, г<input name="gross" inputmode="decimal" required autocomplete="off" placeholder="катушка целиком" class="big-input"></label>
+      <label>Пустая катушка, г<input name="tare" inputmode="decimal" required value="{{ tare|field_num }}"></label>
+      <label class="check"><input type="checkbox" name="tare_for_all" value="1" {% if tare_src != 'spool' %}checked{% endif %}>&nbsp;для всех {{ s.manufacturer }}</label>
+      <button class="btn primary">Записать остаток</button>
+      {% if tare_src == 'default' %}<span class="small muted">вес пустой катушки {{ s.manufacturer }} неизвестен — взят типовой; взвесьте пустую и исправьте</span>{% endif %}
+    </form>
+    <form class="weigh" method="post" action="{{ url_for('spool_use', spool_id=s.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <b>…или списать по слайсеру</b>
+      <label class="check over-confirm"><input type="checkbox" name="confirm_over" value="1">&nbsp;всё равно записать (больше остатка)</label>
+      <label>Израсходовано, г<input name="grams" inputmode="decimal" required autocomplete="off" class="big-input"></label>
+      <button class="btn primary">Списать</button>
+    </form>
+    {% endif %}
+
+    <dl>
+      <dt>Цена</dt><dd>{{ s.price|money }}</dd>
+      <dt>Цена за кг</dt><dd>{{ s.price_per_kg|money }}{% if prices %}
+        <div class="small {{ 'ok-text' if prices.diff <= 0 else 'warn' }}">
+          {% if prices.diff < 0 %}на {{ -prices.diff }}% дешевле{% elif prices.diff > 0 %}на {{ prices.diff }}% дороже{% else %}как{% endif %}
+          средней по {{ prices.base }} ({{ prices.avg|money }}){% if prices.is_cheapest %} · самая дешёвая{% else %};
+          дешевле всего — <a href="{{ url_for('index', manufacturer=prices.cheapest_mf, status='all') }}">{{ prices.cheapest_mf }}</a>, {{ prices.cheapest|money }}/кг{% endif %}
+        </div>{% endif %}</dd>
+      <dt>Стоимость остатка</dt><dd>{{ s.value_left|money }}</dd>
+      <dt>Дата покупки</dt><dd>{{ s.purchase_date|ru_date }}</dd>
+      <dt>Дата вскрытия</dt><dd>{{ s.opened_date|ru_date }}</dd>
+      <dt>Сушка</dt><dd>{{ s.dried_date|ru_date if s.dried_date else 'не сушилась' }}{% if s.needs_drying %} · <span class="pill dry">пора сушить</span>{% endif %}</dd>
+      <dt>Где лежит</dt><dd>{% if s.location %}<a href="{{ url_for('index', location=s.location, status='all') }}">{{ s.location }}</a>{% else %}—{% endif %}</dd>
+      <dt>Где купить</dt><dd>{% if s.purchase_url %}<a href="{{ s.purchase_url }}" target="_blank" rel="noopener noreferrer">{{ s.purchase_url|truncate(50, true) }}</a>{% else %}—{% endif %}</dd>
+    </dl>
+    {% if s.notes %}<div class="notes">{{ s.notes }}</div>{% endif %}
+
+    {% if models %}
+    <h2 id="models">3D-модели</h2>
+    <div class="table-wrap"><table class="tbl">
+      <tbody>{% for md in models %}
+        <tr><td><a href="{{ url_for('model_view', model_id=md.id) }}" class="model-link">
+            <img class="model-thumb" src="{{ url_for('model_preview', model_id=md.id) }}" alt="" loading="lazy" data-drop-broken>
+            {{ md.name }}</a></td>
+          <td class="nowrap small muted">{{ '%.1f'|format(md.size / 1048576) }} МБ · {{ '{:,}'.format(md.triangles or 0).replace(',', ' ') }} треуг.</td>
+          <td class="nowrap small muted">{{ md.created_at[:10]|ru_date }}</td>
+          {% if is_admin %}<td><form method="post" action="{{ url_for('model_delete', model_id=md.id) }}" class="inline"
+            data-confirm="Удалить модель?"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <button class="linkbtn" title="Удалить модель">✕</button></form></td>{% endif %}</tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% endif %}
+    <h2 id="prints">Печати из этой катушки</h2>
+    {% if prints %}
+    <div class="gallery">
+      {% for p in prints %}
+      <figure>
+        <a href="{{ url_for('uploaded', name=p.photo) }}" target="_blank"><img src="{{ url_for('thumb', name=p.photo) }}" alt="{{ p.caption }}" loading="lazy"></a>
+        <figcaption>{{ p.caption }}<span class="muted small"> {{ p.created_at[:10]|ru_date }}</span>
+          {% if is_admin %}
+          <form method="post" action="{{ url_for('print_delete', print_id=p.id) }}" class="inline" data-confirm="Удалить фото?">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linkbtn" title="Удалить">✕</button>
+          </form>{% endif %}
+        </figcaption>
+      </figure>
+      {% endfor %}
+    </div>
+    {% elif not is_admin %}<p class="muted small">Пока нет фото.</p>{% endif %}
+    {% if jobs %}
+    <div class="table-wrap"><table class="tbl">
+      <thead><tr><th>Дата</th><th>Что печатали</th><th>Граммы</th><th>Время</th><th>Стоимость</th>{% if is_admin %}<th></th>{% endif %}</tr></thead>
+      <tbody>{% for j in jobs %}
+        <tr><td class="nowrap">{{ j.day|ru_date }}</td><td>{{ j.name or '—' }}</td>
+          <td class="nowrap">{{ j.grams|grams if j.grams else '—' }}</td><td class="nowrap">{{ j.minutes|duration }}</td>
+          <td class="nowrap">{{ j.cost|money if j.cost else '—' }}</td>
+          {% if is_admin %}<td><form method="post" action="{{ url_for('job_delete', job_id=j.id) }}" class="inline"
+              data-confirm="Удалить запись? Остаток не изменится."><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <button class="linkbtn" title="Удалить запись">✕</button></form></td>{% endif %}</tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% endif %}
+    {% if is_admin %}
+    <form class="weigh js-resize" method="post" enctype="multipart/form-data" action="{{ url_for('print_add', spool_id=s.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <b>Записать печать</b>
+      {% if s.alert %}<div class="alert-box" style="flex-basis: 100%; margin: 0">⚠ {{ s.alert }}</div>{% endif %}
+      <label class="check over-confirm"><input type="checkbox" name="confirm_over" value="1">&nbsp;всё равно записать (больше остатка)</label>
+      <label style="flex: 1 1 100%">Файл слайсера (.gcode / .3mf) — граммы и время подставятся сами
+        <input type="file" class="slice-file" accept=".gcode,.3mf,.gco,.bgcode" data-url="{{ url_for('slice_parse', spool_id=s.id) }}">
+        <span class="small slice-status"></span></label>
+      <label style="flex: 1 1 220px">Что напечатано<input name="caption" maxlength="200" placeholder="модель, настройки…"></label>
+      <label>Граммы (спишутся)<input name="grams" inputmode="decimal" autocomplete="off"></label>
+      <label>Время<input name="duration" placeholder="1:30" autocomplete="off"></label>
+      <label style="flex: 1 1 220px">Фото модели<input type="file" name="photos" accept="image/*" multiple></label>
+      <label style="flex: 1 1 220px">3D-модель (.stl, до 15 МБ)<input type="file" name="models" accept=".stl" multiple></label>
+      <button class="btn primary">Записать</button>
+    </form>
+    {% endif %}
+
+    {% if accuracy %}{% set sl = accuracy|sum(attribute='slicer') %}{% set ac = accuracy|sum(attribute='actual') %}
+    <p class="small">Слайсер против весов: по слайсеру {{ sl|grams }}, по весам {{ ac|grams }}
+      <span class="{{ 'warn' if ((ac / sl - 1) * 100)|abs >= 10 else 'muted' }}">({{ '%+d'|format(((ac / sl - 1) * 100)|round|int) }}%)</span></p>
+    {% endif %}
+    {% if history %}
+    <h2>Расход</h2>
+    <div class="table-wrap"><table class="tbl">
+      <thead><tr><th>Дата</th><th>Израсходовано</th><th>Осталось</th><th>Стоимость</th></tr></thead>
+      <tbody>{% for h in history %}
+        <tr><td class="nowrap">{{ h.day|ru_date }}</td>
+          <td class="nowrap">{% if h.used < 0 %}<span class="muted">поправка +{{ (-h.used)|grams }}</span>{% else %}{{ h.used|grams }}{% endif %}</td>
+          <td class="nowrap">{{ h.left_after|grams }}</td><td class="nowrap">{{ h.cost|money if h.cost and h.cost > 0 else '—' }}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% endif %}
+
+    <h2>Настройки печати {% if profile %}<span class="small muted">— {{ profile.material }}{% if profile.manufacturer %}, {{ profile.manufacturer }}{% endif %}</span>{% endif %}</h2>
+    {% if profile %}
+    <dl>
+      {% for k, label in profile_fields if profile[k] %}<dt>{{ label }}</dt><dd>{{ profile[k] }}</dd>{% endfor %}
+    </dl>
+    {% else %}<p class="muted small">Для {{ s.material }} настроек нет.</p>{% endif %}
+    {% if is_admin %}<p class="small">
+      {% if profile and profile.manufacturer|lower == s.manufacturer|lower %}<a href="{{ url_for('profile_edit', pid=profile.id) }}">Изменить настройки</a>
+      {% else %}{% if profile %}<a href="{{ url_for('profile_edit', pid=profile.id) }}">Изменить для всех {{ profile.material }}</a> · {% endif %}
+        <a href="{{ url_for('profile_edit', material=s.material, manufacturer=s.manufacturer) }}">Свои настройки для {{ s.manufacturer }} {{ s.material }}</a>{% endif %}
+    </p>{% endif %}
+
+    {% if is_admin %}
+    <div class="actions">
+      {% if s.status == 'ordered' %}
+      <form method="post" action="{{ url_for('spool_arrived', spool_id=s.id) }}" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn primary">📦 Пришла</button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('spool_reorder', spool_id=s.id) }}" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn" title="Записать заказ такой же катушки">🛒 Купить ещё</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('spool_on_printer', spool_id=s.id) }}" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="btn{{ ' primary' if on_printer else '' }}">{{ '🖨 На принтере — снять' if on_printer else '🖨 Поставил на принтер' }}</button>
+      </form>
+      <form method="post" action="{{ url_for('spool_dried', spool_id=s.id) }}" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="btn">Высушил сегодня</button>
+      </form>
+      {% if not s.opened_date %}
+      <form method="post" action="{{ url_for('spool_open', spool_id=s.id) }}" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="btn">Вскрыл сегодня</button>
+      </form>
+      {% endif %}
+      <a class="btn primary" href="{{ url_for('spool_edit', spool_id=s.id) }}">Редактировать</a>
+      <a class="btn" href="{{ url_for('spool_new', copy=s.id) }}">Добавить такую же</a>
+      <form method="post" action="{{ url_for('template_save', spool_id=s.id) }}" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="btn" title="Сохранить как шаблон для быстрого добавления таких же покупок">★ В шаблоны</button>
+      </form>
+      <a class="btn" href="{{ url_for('labels', id=s.id, print=1) }}">🖨 Этикетка</a>
+      <a class="btn" href="{{ url_for('history', spool=s.id) }}">Журнал</a>
+      <form method="post" action="{{ url_for('spool_delete', spool_id=s.id) }}" class="inline"
+            data-confirm="Удалить катушку безвозвратно?">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="btn danger">Удалить</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</article>
+{% endblock %}

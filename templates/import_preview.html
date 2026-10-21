@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Импорт — проверка{% endblock %}
+{% block content %}
+<h1>Импорт: проверка</h1>
+<form method="post">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+
+  <h2>Колонки</h2>
+  <p class="small muted">Заголовки найдены в строке {{ header_line }}. Поправьте сопоставление, если нужно,
+    и нажмите «Обновить предпросмотр». В «Заметки» можно направить несколько колонок.</p>
+  {% if missing %}<div class="flash error">Не выбраны колонки: {{ missing|join(', ') }}.</div>{% endif %}
+  <div class="table-wrap">
+  <table class="tbl">
+    <thead><tr><th>Колонка таблицы</th><th>Примеры значений</th><th>Поле</th></tr></thead>
+    <tbody>
+    {% for c in columns %}
+      <tr class="{{ '' if c.field else 'skipped' }}">
+        <td><b>{{ c.title }}</b></td>
+        <td class="small samples">{% for v in c.samples %}<span>{{ v|truncate(60, true) }}</span>{% else %}<span class="muted">пусто</span>{% endfor %}</td>
+        <td><select name="map_{{ loop.index0 }}">
+          <option value="">— не импортировать —</option>
+          {% for key, label, _ in fields %}<option value="{{ key }}" {% if key == c.field %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <label class="check"><input type="checkbox" name="skip_dups" value="1" {% if skip_dups %}checked{% endif %}>
+    &nbsp;узнавать катушки, которые уже есть в базе (по №; без номера — по производителю, типу, цвету и дате покупки)</label>
+  <label class="check"><input type="checkbox" name="do_update" value="1" {% if do_update %}checked{% endif %}>
+    &nbsp;обновлять у них поля, изменённые в таблице (пустые ячейки ничего не стирают; остаток и история не меняются)</label>
+
+  {% if counts.sheet_photos %}
+  <label class="check"><input type="checkbox" name="use_photos" value="1" {% if use_photos %}checked{% endif %}>
+    &nbsp;взять фото из таблицы ({{ counts.sheet_photos }} шт.); катушкам, которые уже есть в базе без фото, фото будет добавлено</label>
+  {% endif %}
+
+  <div class="actions">
+    <button class="btn" name="action" value="preview">Обновить предпросмотр</button>
+    <button class="btn primary" name="action" value="run" {% if not counts.new and not counts.photo_only and not counts.updates %}disabled{% endif %}>Импортировать: новых {{ counts.new }}{% if counts.updates %}, обновить {{ counts.updates }}{% endif %}{% if counts.photo_only %}, фото к {{ counts.photo_only }}{% endif %}</button>
+    <a class="btn" href="{{ url_for('import_start') }}">Другая таблица</a>
+  </div>
+</form>
+
+<h2>Строки</h2>
+<p class="small">Всего {{ counts.total }}: новых <b>{{ counts.new }}</b>{% if counts.dups %}, уже есть в базе {{ counts.dups }}{% if counts.updates %} (из них изменились {{ counts.updates }}){% endif %}{% endif %}{% if counts.errors %}, <span class="err">с ошибками {{ counts.errors }}</span>{% endif %}.
+  Вес, если его нет в таблице, — 1000 г, остаток — равен весу.</p>
+<div class="table-wrap">
+<table class="tbl">
+  <thead><tr><th>Стр.</th><th></th><th>Фото</th><th>№</th><th>Производитель</th><th>Тип</th><th>Цвет</th><th>Вес / остаток</th><th>Цена</th><th>Покупка</th><th>Вскрыта</th><th>Ссылка</th><th>Замечания</th></tr></thead>
+  <tbody>
+  {% for r in rows %}{% set d = r.data %}
+    <tr class="{{ 'row-error' if r.errors else ('row-dup' if r.duplicate and not r.add_photo and not r.changes else '') }}">
+      <td class="muted">{{ r.line }}</td>
+      <td>{{ '✕' if r.errors else ('↻' if r.changes else ('📷' if r.add_photo else ('=' if r.duplicate else '✓'))) }}</td>
+      <td>{% if r.sheet_photo %}<img class="import-thumb" src="{{ url_for('import_photo', token=token, line=r.line) }}" alt="" loading="lazy">{% endif %}</td>
+      <td class="nowrap">{{ d.number }}</td>
+      <td>{{ d.manufacturer }}</td>
+      <td>{{ d.material }}</td>
+      <td class="nowrap"><span class="swatch" style="background: {{ d.color_hex }}"></span> {{ d.color_name }}</td>
+      <td class="nowrap">{{ d.weight_total|grams }} / {{ d.weight_left|grams }}</td>
+      <td class="nowrap">{{ d.price|money }}</td>
+      <td class="nowrap">{{ d.purchase_date|ru_date }}</td>
+      <td class="nowrap">{{ d.opened_date|ru_date }}</td>
+      <td>{% if d.purchase_url %}<a href="{{ d.purchase_url }}" target="_blank" rel="noopener noreferrer">ссылка</a>{% endif %}{% if r.photo_url %} 📷{% endif %}</td>
+      <td class="small">
+        {% if r.changes %}<div><b>изменится:</b></div>{% for k, old, new in r.changes %}<div class="chg">{{ labels[k] }}: <s>{{ old|field_num('—') if old not in (none, '') else '—' }}</s> → {{ new|field_num }}</div>{% endfor %}{% endif %}
+        {% if r.add_photo %}<span class="muted">будет добавлено фото</span>{% elif r.duplicate and not r.changes %}<span class="muted">уже есть в базе, без изменений</span>{% endif %}
+        {% for e in r.errors %}<div class="err">{{ e }}</div>{% endfor %}
+        {% for w in r.warnings %}<div class="warn">{{ w }}</div>{% endfor %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

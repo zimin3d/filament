@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Импорт{% endblock %}
+{% block content %}
+<h1>Импорт из таблицы</h1>
+<form class="spool-form" method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <fieldset>
+    <legend>Google Таблица</legend>
+    <label class="wide">Ссылка на таблицу
+      <input type="url" name="sheet_url" value="{{ sheet_url }}" placeholder="https://docs.google.com/spreadsheets/d/…">
+    </label>
+    <p class="small muted wide">Нужен доступ «Все, у кого есть ссылка → Читатель». Импортируется тот лист,
+      который открыт по ссылке (параметр <code>gid</code>), иначе первый.</p>
+  </fieldset>
+  <fieldset>
+    <legend>…или CSV-файл</legend>
+    <label class="wide">Файл (в Google Таблицах: Файл → Скачать → CSV)
+      <input type="file" name="csv_file" accept=".csv,.tsv,.txt,text/csv">
+    </label>
+  </fieldset>
+  <p class="small muted">На следующем шаге можно проверить, как колонки сопоставились с полями, и посмотреть результат до импорта.</p>
+  <div class="actions">
+    <button class="btn primary">Загрузить</button>
+    <a class="btn" href="{{ url_for('index') }}">Отмена</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}История печатей принтера{% endblock %}
+{% block content %}
+<h1>История печатей принтера</h1>
+<p>У Creality K2 (Klipper) вся история хранится в самом принтере. Сохранить её можно из браузера дома, в той же сети, что и принтер:</p>
+<ol class="small">
+  <li>Откройте <code>http://IP-ПРИНТЕРА:7125/server/history/list?limit=1000</code> (IP — в настройках сети на экране принтера).</li>
+  <li>Сохраните страницу как файл (Ctrl+S → <code>history.json</code>).</li>
+  <li>Загрузите файл сюда.</li>
+</ol>
+<form method="post" enctype="multipart/form-data" class="weigh">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <label style="flex: 1 1 100%">Файл истории (.json)<input type="file" name="history" accept=".json,application/json" required></label>
+  <label class="check" style="flex-basis: 100%"><input type="checkbox" name="to_inbox" value="1">&nbsp;разнести по катушкам вручную во «Входящих» (спишет пластик — только если остатки ещё не взвешивались после этих печатей)</label>
+  <button class="btn primary">Загрузить</button>
+</form>
+<p class="small muted">По умолчанию старые печати <b>не списывают</b> пластик (остатки уже учтены взвешиванием) — они идут в наработку принтера (обслуживание) и статистику. Повторная загрузка не задвоит: печати узнаются по номеру задания.</p>
+{% if hist[0] %}<p class="small">Уже загружено из истории: {{ hist[0] }} печатей, {{ '%.1f'|format(hist[1] / 60) }} ч ({{ hist[2]|ru_date }} — {{ hist[3]|ru_date }}).</p>{% endif %}
+{% endblock %}

@@ -1,0 +1,8 @@
+venv/
+data/
+__pycache__/
+.pytest_cache/
+agent/k2_agent_state.json
+venv38/
+deploy/site.env
+private/

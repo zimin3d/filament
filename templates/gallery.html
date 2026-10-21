@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Галерея{% endblock %}
+{% block content %}
+<h1>Галерея печатей и моделей</h1>
+<form class="filters" method="get">
+  <input type="search" name="q" value="{{ f.q }}" placeholder="Поиск: название, цвет, №">
+  <select name="kind">
+    {% for v, l in [('', 'Фото и модели'), ('photo', 'Только фото'), ('model', 'Только 3D-модели')] %}
+    <option value="{{ v }}" {% if v == f.kind %}selected{% endif %}>{{ l }}</option>{% endfor %}
+  </select>
+  {% if materials|length > 1 %}<select name="material"><option value="">Все материалы</option>
+    {% for m in materials %}<option {% if m == f.material %}selected{% endif %}>{{ m }}</option>{% endfor %}</select>{% endif %}
+  <button class="btn">Показать</button>
+  {% if f.q or f.kind or f.material %}<a class="btn" href="{{ url_for('gallery') }}">✕ Сбросить</a>{% endif %}
+</form>
+{% if not items %}<p class="empty">Пусто. Фото и STL добавляются на странице катушки в «Записать печать».</p>{% endif %}
+<section class="gal">
+  {% for it in items %}
+  <figure class="gal-item">
+    {% if it.kind == 'photo' %}
+      <a href="{{ url_for('uploaded', name=it.photo) }}" target="_blank"><img src="{{ url_for('thumb', name=it.photo) }}" alt="{{ it.title }}" loading="lazy"></a>
+    {% else %}
+      <a href="{{ url_for('model_view', model_id=it.id) }}" class="gal-model" style="--c: {{ it.color_hex }}">
+        <img src="{{ url_for('model_preview', model_id=it.id) }}" alt="" loading="lazy" data-drop-broken>
+        <span class="gal-badge">🧊 3D</span></a>
+    {% endif %}
+    <figcaption>
+      <div class="gal-title">{{ it.title or ('Фото' if it.kind == 'photo' else 'Модель') }}</div>
+      <a class="small muted" href="{{ url_for('spool_detail', spool_id=it.spool_id) }}"><span class="swatch" style="background: {{ it.color_hex }}"></span>
+        {% if it.number %}№{{ it.number }} {% endif %}{{ it.material }} {{ it.color_name|truncate(18, true) }}</a>
+      <div class="small muted">{{ it.created_at[:10]|ru_date }}</div>
+    </figcaption>
+  </figure>
+  {% endfor %}
+</section>
+{% if total > items|length %}<p class="small muted">Показаны {{ items|length }} из {{ total }} — уточните поиск.</p>{% endif %}
+{% endblock %}

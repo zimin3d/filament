@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Печати с принтера{% endblock %}
+{% block content %}
+<h1>Печати с принтера</h1>
+<p class="small muted">Многоцветные печати (или когда катушка «на принтере» не выбрана) ждут здесь: укажите, с каких катушек списать.</p>
+{% if not items %}<p class="empty">Всё разобрано.</p>{% else %}
+<form method="post" class="inline" data-confirm="Пропустить все {{ items|length }}? Пластик не спишется.">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn" name="skip_all" value="1">Пропустить все ({{ items|length }})</button>
+</form>{% endif %}
+{% for it in items %}
+<form class="weigh" method="post">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="id" value="{{ it.id }}">
+  <b>{{ it.day|ru_date }} · {{ it.name or 'без названия' }} · {{ it.minutes|duration }}</b>
+  {% for w in it.weights %}{% set fi = loop.index0 %}
+  <label style="flex: 2 1 260px">Филамент {{ loop.index }}
+    <select name="spool_{{ loop.index0 }}">
+      <option value="">— не списывать —</option>
+      {% for s in spools %}<option value="{{ s.id }}" {% if s.id == current and fi == 0 %}selected{% endif %}>{% if s.number %}№{{ s.number }} {% endif %}{{ s.material }} {{ s.color_name }} · {{ s.manufacturer }} ({{ s.weight_left|grams }})</option>{% endfor %}
+    </select></label>
+  <label>Граммы<input name="grams_{{ loop.index0 }}" value="{{ w|field_num }}" inputmode="decimal"></label>
+  {% endfor %}
+  <button class="btn primary">Списать</button>
+  <button class="btn" name="skip" value="1" formnovalidate>Пропустить</button>
+</form>
+{% endfor %}
+{% endblock %}

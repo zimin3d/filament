@@ -1,0 +1,21 @@
+[Unit]
+Description=Filament: резервная копия data/ с проверкой восстановления
+After=filament.service
+
+[Service]
+Type=oneshot
+User=filament
+Group=filament
+WorkingDirectory=@APP_DIR@
+Environment=FILAMENT_DATA=/var/lib/filament/data
+Environment=FILAMENT_BACKUPS=/var/lib/filament/filament-backups
+Environment=HOME=/var/lib/filament
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=@APP_DIR@/deploy/backup.sh
+UMask=0077
+ProtectHome=tmpfs
+BindReadOnlyPaths=@APP_DIR@ @UV_PYTHON@
+ProtectSystem=strict
+ReadWritePaths=/var/lib/filament
+PrivateTmp=true
+NoNewPrivileges=true

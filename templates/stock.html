@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Остатки{% endblock %}
+{% block content %}
+<h1>Остатки по материалам</h1>
+<div class="table-wrap">
+<table class="tbl">
+  <thead><tr><th>Материал</th><th>Катушек</th><th>Остаток</th><th>Стоимость остатка</th><th>Закончились</th></tr></thead>
+  <tbody>
+  {% for m in materials %}
+    <tr>
+      <td><a href="{{ url_for('index', material=m.material) }}"><b>{{ m.material }}</b></a></td>
+      <td>{{ m.count }}</td>
+      <td class="nowrap">{{ (m.left / 1000)|round(2) }} кг</td>
+      <td class="nowrap">{{ m.value|money }}</td>
+      <td class="muted">{{ m.empty or '' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>Расход по месяцам</h2>
+{% if not months %}<p class="empty">Пока нет данных — расход записывается при взвешивании и изменении остатка.</p>{% else %}
+<div class="table-wrap">
+<table class="tbl">
+  <thead><tr><th>Месяц</th><th>Израсходовано</th><th class="bar-col"></th><th>Стоимость</th></tr></thead>
+  <tbody>
+  {% for m in months %}
+    <tr>
+      <td class="nowrap">{{ m.month[5:] }}.{{ m.month[:4] }}</td>
+      <td class="nowrap">{{ m.used|grams }}</td>
+      <td class="bar-col"><div class="hbar"><span style="width: {{ m.pct }}%"></span></div></td>
+      <td class="nowrap">{{ m.cost|money if m.cost else '—' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{% if ordered %}
+<h2>Заказано ({{ ordered|length }})</h2>
+<div class="table-wrap"><table class="tbl">
+  <thead><tr><th>№</th><th>Катушка</th><th>Заказ от</th><th>Цена</th></tr></thead>
+  <tbody>{% for s in ordered %}
+    <tr><td>{{ s.number }}</td>
+      <td><a href="{{ url_for('spool_detail', spool_id=s.id) }}"><span class="swatch" style="background: {{ s.swatch }}"></span> {{ s.material }} {{ s.color_name }}</a> <span class="muted">· {{ s.manufacturer }}</span></td>
+      <td class="nowrap">{{ s.purchase_date|ru_date }}</td><td class="nowrap">{{ s.price|money }}</td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% endif %}
+
+<h2>Что докупить</h2>
+<form class="filters" method="get">
+  <label class="check">Остаток меньше&nbsp;<input name="min" value="{{ threshold }}" inputmode="numeric" size="5">&nbsp;г</label>
+  <button class="btn">Показать</button>
+</form>
+{% if not low %}<p class="empty">Нет катушек с остатком меньше {{ threshold }} г.</p>{% else %}
+<div class="table-wrap">
+<table class="tbl">
+  <thead><tr><th>№</th><th>Катушка</th><th>Остаток</th><th>Где купить</th></tr></thead>
+  <tbody>
+  {% for s in low %}
+    <tr class="{{ 'row-dup' if s.status == 'empty' else '' }}">
+      <td>{{ s.number }}</td>
+      <td><a href="{{ url_for('spool_detail', spool_id=s.id) }}"><span class="swatch" style="background: {{ s.swatch }}"></span>
+        {{ s.material }} {{ s.color_name }}</a> <span class="muted">· {{ s.manufacturer }}</span></td>
+      <td class="nowrap">{{ s.weight_left|grams }}</td>
+      <td>{% if s.reordered %}<span class="muted">✓ уже заказана</span>{% else %}{% if s.purchase_url %}<a href="{{ s.purchase_url }}" target="_blank" rel="noopener noreferrer">купить</a> {% endif %}{% if s.price %}<span class="muted">{{ s.price|money }}</span>{% endif %}{% if s.prices and not s.prices.is_cheapest %}<div class="small muted">дешевле: {{ s.prices.cheapest_mf }}, {{ s.prices.cheapest|money }}/кг</div>{% endif %}
+        {% if is_admin %}<form method="post" action="{{ url_for('spool_reorder', spool_id=s.id) }}" class="inline">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linkbtn" style="color: var(--accent)">🛒 заказал</button></form>{% endif %}{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% if is_admin %}
+<h2 id="showcase">Публичная витрина</h2>
+<p class="small muted">Ссылка для друзей: что есть в наличии — цвет, материал, производитель и примерный остаток. Без цен, ссылок, заметок и мест; работает без входа.</p>
+<form method="post" action="{{ url_for('showcase_settings') }}" class="weigh" style="margin-top: 0">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  {% if showcase_url %}
+  <label style="flex: 1 1 100%">Ссылка<input value="{{ showcase_url }}" readonly data-select-all></label>
+  <a class="btn" href="{{ showcase_url }}" target="_blank">Открыть</a>
+  <button class="btn" name="action" value="new">Новая ссылка</button>
+  <button class="btn danger" name="action" value="off">Выключить</button>
+  {% else %}
+  <button class="btn primary" name="action" value="new">Включить витрину</button>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}

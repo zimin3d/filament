@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Отчёт за {{ year }}{% endblock %}
+{% block content %}
+{% set MONTHS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'] %}
+<div class="report">
+<h1>Филамент: отчёт за {{ year }} год
+  <span class="no-print" style="margin-left: auto; display: flex; gap: 8px">
+    {% if years|length > 1 %}<form method="get"><select name="year" data-autosubmit>
+      {% for y in years %}<option {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></form>{% endif %}
+    <button class="btn primary" type="button" data-print>🖨 Печать / PDF</button>
+  </span>
+</h1>
+<p class="small muted">Сформирован {{ today|ru_date }}.</p>
+
+<section class="stats">
+  <div><span class="num">{{ totals.bought_n }}</span><span class="lbl">катушек куплено · {{ totals.bought_kg|round(1) }} кг</span></div>
+  <div><span class="num">{{ totals.bought|money }}</span><span class="lbl">потрачено на покупку</span></div>
+  <div><span class="num">{{ (totals.used / 1000)|round(2) }} кг</span><span class="lbl">израсходовано · {{ totals.used_cost|money }}</span></div>
+  <div><span class="num">{{ totals.jobs }}</span><span class="lbl">печатей · {{ totals.minutes|duration }}</span></div>
+</section>
+
+<h2>По месяцам</h2>
+<div class="table-wrap"><table class="tbl">
+  <thead><tr><th>Месяц</th><th>Куплено</th><th>Израсходовано</th><th class="bar-col"></th><th>Стоимость расхода</th><th>Печатей</th></tr></thead>
+  <tbody>{% for m in months %}
+    <tr><td>{{ MONTHS[m.m - 1] }}</td>
+      <td class="nowrap">{% if m.bought_n %}{{ m.bought_n }} шт · {{ m.bought|money }}{% else %}—{% endif %}</td>
+      <td class="nowrap">{{ m.used|grams if m.used else '—' }}</td>
+      <td class="bar-col"><div class="hbar"><span style="width: {{ m.pct }}%"></span></div></td>
+      <td class="nowrap">{{ m.cost|money if m.cost else '—' }}</td><td>{{ m.jobs or '—' }}</td></tr>
+  {% endfor %}</tbody>
+</table></div>
+
+{% if by_material %}
+<h2>Расход по материалам</h2>
+<div class="table-wrap"><table class="tbl">
+  <tbody>{% for r in by_material %}
+    <tr><td><b>{{ r.name }}</b></td><td class="nowrap">{{ r.used|grams }}</td><td class="nowrap">{{ r.cost|money if r.cost else '—' }}</td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% endif %}
+
+{% if finished %}
+<h2>Закончились в {{ year }} ({{ finished|length }})</h2>
+<p>{% for s in finished %}<span class="nowrap"><span class="swatch" style="background: {{ s.swatch }}"></span> {% if s.number %}№{{ s.number }} {% endif %}{{ s.material }} {{ s.color_name }}</span>{% if not loop.last %} · {% endif %}{% endfor %}</p>
+{% endif %}
+{% if not totals.bought_n and not totals.used and not totals.jobs %}
+<p class="empty">За {{ year }} год данных нет: нужны даты покупки, взвешивания или записи о печати.</p>
+{% endif %}
+</div>
+{% endblock %}

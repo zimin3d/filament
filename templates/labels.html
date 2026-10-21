@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Этикетки</title>
+<style>
+  /* размер задаётся из скрипта (--w, --h в мм) и @page; по умолчанию 58×40 */
+  :root { --w: 58; --h: 40; }
+  body { margin: 0; font: 12px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #000; background: #eee; }
+  .bar { position: sticky; top: 0; z-index: 2; padding: 10px 16px; display: flex; gap: 10px; align-items: center;
+         flex-wrap: wrap; background: #fff; border-bottom: 1px solid #ddd; }
+  .bar a { color: #2563eb; text-decoration: none; }
+  .bar .back { border: 1px solid #2563eb; border-radius: 8px; padding: 6px 12px; font-weight: 600; }
+  .bar button, .bar select, .bar input { font: inherit; padding: 6px 10px; border: 1px solid #bbb; border-radius: 8px; background: #fff; }
+  .bar button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .bar input[type=number] { width: 64px; }
+  .bar label { display: inline-flex; gap: 6px; align-items: center; }
+  .sheet { display: flex; flex-wrap: wrap; gap: 14px; padding: 16px; }
+  .slot { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .label { box-sizing: border-box; width: calc(var(--w) * 1mm); height: calc(var(--h) * 1mm); background: #fff;
+           box-shadow: 0 1px 4px rgba(0,0,0,.25); padding: calc(var(--h) * .06mm);
+           display: flex; gap: calc(var(--h) * .06mm); overflow: hidden; color: #000; }
+  .label .qr { height: 100%; width: auto; aspect-ratio: 1; flex: none; }
+  .label .t { min-width: 0; flex: 1; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+  .num { font-size: calc(var(--h) * .24mm); font-weight: 900; line-height: 1; }
+  .mat { font-size: calc(var(--h) * .15mm); font-weight: 800; line-height: 1.05; }
+  .col, .mf, .al { font-size: calc(var(--h) * .095mm); line-height: 1.15; overflow-wrap: anywhere; font-weight: 600; }
+  .al { font-weight: 800; }
+  .sw { display: none; width: 1em; height: 1em; border-radius: 50%; border: 1px solid #000; vertical-align: -.15em; margin-right: .25em;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .color-on .sw { display: inline-block; }
+  /* маленькие этикетки: только QR, номер и материал */
+  .small-label .col, .small-label .mf, .small-label .al { display: none; }
+  .slot-tools { display: flex; gap: 6px; }
+  .one { font: inherit; font-size: 12px; padding: 4px 10px; border: 1px solid #bbb; border-radius: 6px; background: #fff; cursor: pointer; }
+  @media print {
+    body { background: #fff; }
+    .bar, .one { display: none !important; }
+    .sheet { display: block; padding: 0; }
+    .slot { display: block; }
+    .label { box-shadow: none; page-break-after: always; break-after: page; break-inside: avoid; }
+    .slot:last-child .label { page-break-after: auto; break-after: auto; }
+    body.only .slot:not(.chosen) { display: none; }
+    body.only .slot.chosen .label { page-break-after: auto; break-after: auto; }
+  }
+</style>
+<style id="page-size">@page { size: 58mm 40mm; margin: 0; }</style>
+</head>
+<body{% if autoprint and spools|length == 1 %} data-autoprint="1"{% endif %}>
+<div class="bar">
+  <a href="{{ list_url() }}" class="back">← Все катушки</a>
+  <label>Этикетка
+    <select id="size">
+      {% for w, h in sizes %}<option value="{{ w }}x{{ h }}">{{ w }} × {{ h }} мм</option>{% endfor %}
+      <option value="custom">свой размер…</option>
+    </select></label>
+  <span id="custom" hidden><input type="number" id="cw" min="15" max="150" step="1" value="58"> ×
+    <input type="number" id="ch" min="10" max="150" step="1" value="40"> мм</span>
+  <label><input type="checkbox" id="color"> цветной кружок</label>
+  <span>Этикеток: {{ spools|length }}</span>
+  <button class="primary" id="print-all">🖨 Печать{{ ' всех' if spools|length > 1 else '' }}</button>
+  <span style="font-size: 12px; color: #555">В диалоге печати: выбрать термопринтер, масштаб 100%, поля «нет».</span>
+</div>
+<div class="sheet">
+  {% for s in spools %}
+  <div class="slot">
+    <div class="label">
+      {{ s.qr }}
+      <div class="t">
+        <div class="num">{% if s.number %}№{{ s.number }}{% endif %}</div>
+        <div class="mat">{{ s.material }}</div>
+        <div class="col"><span class="sw" style="background: {{ s.color_hex }}"></span>{{ s.color_name|truncate(30, true) }}</div>
+        {% if s.alert %}<div class="al">⚠ {{ s.alert|truncate(28, true) }}</div>{% endif %}
+        <div class="mf">{{ s.manufacturer|truncate(22, true) }}{% if s.purchase_date %} · {{ s.purchase_date|ru_date }}{% endif %}</div>
+      </div>
+    </div>
+    <div class="slot-tools">
+      {% if spools|length > 1 %}<button class="one" type="button">🖨 только эту</button>{% endif %}
+      <button class="one png" type="button" data-url="{{ url_for('label_png', spool_id=s.id) }}"
+              data-name="этикетка-{{ s.number or s.id }}.png" title="Картинка для приложения Niimbot / Phomemo">📤 В Niimbot</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<script src="{{ url_for('static', filename='labels.js') }}"></script>
+</body>
+</html>

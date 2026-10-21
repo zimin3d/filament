@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Настройки печати{% endblock %}
+{% block content %}
+<h1>{{ 'Новые настройки' if pid is none else 'Настройки печати' }}</h1>
+<form class="spool-form" method="post">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <fieldset>
+    <label>Материал*<input name="material" value="{{ p.material or '' }}" required list="mats">
+      <datalist id="mats">{% for m in materials %}<option value="{{ m }}">{% endfor %}</datalist></label>
+    <label>Производитель<input name="manufacturer" value="{{ p.manufacturer or '' }}" placeholder="пусто — для всех" list="mf">
+      <datalist id="mf">{% for m in known_manufacturers() %}<option value="{{ m }}">{% endfor %}</datalist></label>
+    {% for k, label in fields if k != 'notes' %}
+    <label>{{ label }}<input name="{{ k }}" value="{{ p[k] or '' }}"></label>
+    {% endfor %}
+    <label class="wide">Заметки<textarea name="notes" rows="3">{{ p.notes or '' }}</textarea></label>
+  </fieldset>
+  <div class="actions">
+    <button class="btn primary">Сохранить</button>
+    <a class="btn" href="{{ url_for('profiles') }}">Отмена</a>
+    {% if pid is not none %}<button class="btn danger" name="delete" value="1" data-confirm="Удалить настройки?" formnovalidate>Удалить</button>{% endif %}
+  </div>
+</form>
+{% endblock %}

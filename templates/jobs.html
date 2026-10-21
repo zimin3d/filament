@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Печати{% endblock %}
+{% block content %}
+<h1>Журнал печатей</h1>
+<section class="stats">
+  <div><span class="num">{{ totals.count }}</span><span class="lbl">печатей</span></div>
+  <div><span class="num">{{ (totals.grams / 1000)|round(2) }} кг</span><span class="lbl">пластика</span></div>
+  <div><span class="num">{{ totals.minutes|duration }}</span><span class="lbl">время печати</span></div>
+  <div><span class="num">{{ totals.cost|money }}</span><span class="lbl">стоимость пластика</span></div>
+</section>
+{% if not jobs %}<p class="empty">Пока пусто. Печать записывается на странице катушки: «Записать печать».</p>{% else %}
+<div class="table-wrap">
+<table class="tbl">
+  <thead><tr><th>Дата</th><th></th><th>Что печатали</th><th>Катушка</th><th>Граммы</th><th>Время</th><th>Стоимость</th></tr></thead>
+  <tbody>
+  {% for j in jobs %}
+    <tr>
+      <td class="nowrap">{{ j.day|ru_date }}</td>
+      <td>{% if j.photo %}<a href="{{ url_for('uploaded', name=j.photo) }}" target="_blank"><img class="import-thumb" src="{{ url_for('thumb', name=j.photo) }}" alt="" loading="lazy"></a>{% endif %}</td>
+      <td>{{ j.name or '—' }}{% if j.model_id %} <a href="{{ url_for('model_view', model_id=j.model_id) }}" title="3D-модель">🧊</a>{% endif %}</td>
+      <td><a href="{{ url_for('spool_detail', spool_id=j.spool_id) }}#prints"><span class="swatch" style="background: {{ j.color_hex }}"></span>
+        {% if j.number %}№{{ j.number }} {% endif %}{{ j.material }} {{ j.color_name }}</a></td>
+      <td class="nowrap">{{ j.grams|grams if j.grams else '—' }}</td>
+      <td class="nowrap">{{ j.minutes|duration }}</td>
+      <td class="nowrap">{{ j.cost|money if j.cost else '—' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

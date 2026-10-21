@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block content %}
+{% if empty_page %}<h1>Закончились</h1>{% endif %}
+<section class="stats">
+  <div><span class="num">{{ stats.count }}</span><span class="lbl">катушек</span></div>
+  <div><span class="num">{{ (stats.weight_left / 1000)|round(2) }} кг</span><span class="lbl">остаток</span></div>
+  <div><span class="num">{{ stats.value_left|money }}</span><span class="lbl">стоимость остатка</span></div>
+  <div><span class="num">{{ stats.spent|money }}</span><span class="lbl">потрачено на покупку</span></div>
+  {% if stats.needs_drying %}<div><span class="num">{{ stats.needs_drying }}</span><span class="lbl">пора сушить</span></div>{% endif %}
+</section>
+
+{% if palette|length > 1 and not empty_page %}
+<nav class="palette" aria-label="Поиск по цвету">
+  {% for c in palette %}{% set active = f.color == c.hex %}
+  <a href="{{ url_for('index', **dict(f, color=(None if active else c.hex))) }}" class="pal{{ ' on' if active else '' }}"
+     style="background: {{ c.hex }}" title="{{ c.n }} шт.{{ ' — снять' if active else '' }}" aria-label="Цвет {{ c.hex }}, {{ c.n }} шт."></a>
+  {% endfor %}
+  {% if f.color %}<span class="small muted">похожие на <span class="swatch" style="background: {{ f.color }}"></span></span>{% endif %}
+</nav>
+{% endif %}
+<form class="filters" method="get">
+  {% if f.color %}<input type="hidden" name="color" value="{{ f.color }}">{% endif %}
+  <input type="search" name="q" value="{{ f.q }}" placeholder="Поиск: №, цвет, производитель, заметки">
+  <select name="material">
+    <option value="">Все типы</option>
+    {% for m in used_materials %}<option {% if m == f.material %}selected{% endif %}>{{ m }}</option>{% endfor %}
+  </select>
+  <select name="manufacturer">
+    <option value="">Все производители</option>
+    {% for m in manufacturers %}<option {% if m == f.manufacturer %}selected{% endif %}>{{ m }}</option>{% endfor %}
+  </select>
+  {% if locations %}
+  <select name="location">
+    <option value="">Все места</option>
+    {% for m in locations %}<option {% if m == f.location %}selected{% endif %}>{{ m }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  {% if not empty_page %}
+  <select name="status">
+    {% for v, l in [('active','В наличии'),('sealed','Запечатанные'),('opened','Вскрытые'),('ordered','Заказаны'),('all','Все')] %}
+      <option value="{{ v }}" {% if v == f.status %}selected{% endif %}>{{ l }}</option>
+    {% endfor %}
+  </select>
+  {% endif %}
+  <select name="sort">
+    {% for v, l in [('new','Сначала новые'),('number','По номеру'),('manufacturer','По производителю'),('material','По типу'),('left','Меньше остаток'),('purchase','По дате покупки')] %}
+      <option value="{{ v }}" {% if v == f.sort %}selected{% endif %}>{{ l }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn">Показать</button>
+  {% if f.q or f.material or f.manufacturer or f.location or f.color or (f.status != 'active' and not empty_page) or f.sort != 'new' %}
+  <a class="btn" href="{{ url_for(list_endpoint) }}" title="Сбросить фильтры и сортировку">✕ Сбросить</a>{% endif %}
+  {% if is_admin and spools %}<button type="button" class="btn" id="pick-toggle" title="Выбрать несколько катушек и изменить их разом">☑ Выбрать</button>{% endif %}
+  <a class="btn" href="{{ url_for('labels', **f) }}" title="Этикетки с QR-кодом для показанных катушек">Этикетки</a>
+  <a class="btn" href="{{ url_for('export_csv', **f) }}" title="Скачать показанные катушки в CSV (Excel, Google Таблицы)">CSV</a>
+</form>
+
+{% if not spools %}
+  <p class="empty">Ничего не найдено.{% if is_admin %} <a href="{{ url_for('spool_new') }}">Добавить катушку</a>{% endif %}</p>
+{% endif %}
+
+{% if is_admin and spools %}
+<form id="bulk" class="bulk-bar weigh" method="post" action="{{ url_for('bulk') }}"
+      data-kinds='{{ bulk_kinds|tojson }}' data-labels="{{ url_for('labels') }}">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <b>Выбрано: <span id="pick-count">0</span> · <a href="#" id="pick-all">все показанные</a></b>
+  <label>Действие
+    <select name="action" id="bulk-action" required>
+      {% for v, l in bulk_actions %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+    </select></label>
+  <label id="bulk-value-wrap">Значение<input name="value" id="bulk-value" autocomplete="off" list="bulk-locs"></label>
+  <datalist id="bulk-locs">{% for m in locations %}<option value="{{ m }}">{% endfor %}</datalist>
+  <button class="btn primary">Применить</button>
+  <button type="button" class="btn" id="pick-labels" title="Этикетки выбранных катушек">🖨 Этикетки</button>
+  <button type="button" class="btn" id="pick-cancel">Отмена</button>
+</form>
+{% endif %}
+<section class="grid">
+  {% for s in spools %}
+  <div class="card-wrap">
+  {% if is_admin %}<input type="checkbox" class="pick" form="bulk" name="ids" value="{{ s.id }}" aria-label="Выбрать катушку">{% endif %}
+  <a class="card status-{{ s.status }}" href="{{ url_for('spool_detail', spool_id=s.id) }}">
+    <div class="thumb" style="--c: {{ s.color_hex }}">
+      {% if s.photo %}<img src="{{ url_for('thumb', name=s.photo) }}" alt="" loading="lazy">{% endif %}
+      <span class="badge">{{ s.status_label }}</span>
+      {% if s.number %}<span class="num-tag">№{{ s.number }}</span>{% endif %}
+      {% if s.needs_drying %}<span class="dry-tag" title="Вскрыта давно — пора сушить">💧 сушить</span>{% endif %}
+    </div>
+    <div class="body">
+      <div class="title"><span class="swatch" style="background: {{ s.swatch }}"></span>{{ s.color_name or 'Без названия' }}</div>
+      <div class="sub">{{ s.manufacturer }} · <b>{{ s.material }}</b> · {{ s.diameter }} мм{% if s.location %}<br>📍 {{ s.location }}{% endif %}</div>
+      {% if s.alert %}<div class="alert-line" title="{{ s.alert }}">⚠ {{ s.alert }}</div>{% endif %}
+      <div class="bar"><span style="width: {{ s.percent_left }}%"></span></div>
+      <div class="row small"><span title="{{ s.meters_left|meters }}">{{ s.weight_left|grams }} из {{ s.weight_total|grams }}</span><span>{{ s.value_left|money }}</span></div>
+    </div>
+  </a>
+  </div>
+  {% endfor %}
+</section>
+{% if is_admin and spools %}
+<script src="{{ url_for('static', filename='bulk.js') }}" defer></script>
+{% endif %}
+{% endblock %}

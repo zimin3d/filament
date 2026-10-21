@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Быстрое заполнение{% endblock %}
+{% block content %}
+<h1>Быстрое заполнение</h1>
+<p class="small muted">
+  {% if only_gaps %}Катушки без цены или даты покупки ({{ spools|length }}). <a href="{{ url_for('fill', all=1) }}">Показать все</a>
+  {% else %}Все катушки. <a href="{{ url_for('fill') }}">Только с пробелами</a>{% endif %}
+  · Меняйте что нужно во всех строках и нажмите «Сохранить» один раз.
+</p>
+{% if not spools %}<p class="empty">Пробелов нет.</p>{% else %}
+<form method="post">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  {% if not only_gaps %}<input type="hidden" name="all" value="1">{% endif %}
+  <div class="table-wrap">
+  <table class="tbl fill">
+    <thead><tr><th>Катушка</th>{% for k, label, kind in fields %}<th>{{ label }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for s in spools %}
+      <tr>
+        <td class="nowrap"><a href="{{ url_for('spool_detail', spool_id=s.id) }}" tabindex="-1"><span class="swatch" style="background: {{ s.swatch }}"></span>
+          {{ s.material }} {{ s.color_name|truncate(22, true) }}</a><div class="small muted">{{ s.manufacturer }}</div></td>
+        {% for k, label, kind in fields %}
+        <td>{% if kind == 'date' %}<input type="date" name="f_{{ s.id }}_{{ k }}" value="{{ s[k] or '' }}">
+          {% elif kind == 'num' %}<input name="f_{{ s.id }}_{{ k }}" value="{{ s[k]|field_num }}" inputmode="decimal" class="num-m">
+          {% else %}<input name="f_{{ s.id }}_{{ k }}" value="{{ s[k] or '' }}"{% if k == 'number' %} class="num-s"{% endif %}{% if k == 'location' %} list="fill-locs"{% endif %}>{% endif %}</td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <datalist id="fill-locs">{% for l in locations %}<option value="{{ l }}">{% endfor %}</datalist>
+  <div class="actions sticky-actions"><button class="btn primary">Сохранить</button></div>
+</form>
+{% endif %}
+{% endblock %}

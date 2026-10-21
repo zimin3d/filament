@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Подбор катушек в CFS{% endblock %}
+{% block content %}
+<h1>Подбор катушек в CFS</h1>
+<p class="small muted">Загрузите файл слайсера (.3mf / .gcode) — цвета, материалы и граммы подставятся сами, или заполните вручную. Подбираются катушки с запасом остатка, близкие по цвету, без пометки «не лезет в CFS»; вскрытые — в первую очередь.</p>
+<form method="get" id="cfs-form" class="weigh" style="margin-top: 0">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}" form="none">
+  <label style="flex: 1 1 100%">Файл слайсера
+    <input type="file" class="slice-file" accept=".gcode,.3mf,.gco" data-url="{{ url_for('slice_parse_any') }}">
+    <span class="small slice-status"></span></label>
+  <div class="cfs-rows" style="flex-basis: 100%">
+    {% for i in range(1, max_rows + 1) %}{% set r = (requests|selectattr('slot', 'equalto', i)|first) %}
+    <div class="cfs-row"{% if i > rows %} hidden{% endif %}>
+      <span class="slot-n">{{ i }}</span>
+      <input type="color" name="c{{ i }}" value="{{ r.color if r and r.color else '#888888' }}" aria-label="Цвет {{ i }}"
+             data-empty="{{ '0' if r and r.color else '1' }}">
+      <select name="m{{ i }}" aria-label="Материал {{ i }}">
+        <option value="">любой</option>
+        {% for m in materials %}<option {% if r and r.material == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+      </select>
+      <input name="g{{ i }}" value="{{ r.grams|field_num if r and r.grams else '' }}" inputmode="decimal" placeholder="г" aria-label="Граммы {{ i }}">
+    </div>
+    {% endfor %}
+  </div>
+  <button type="button" class="btn" id="cfs-more">+ ещё филамент</button>
+  <button class="btn primary">Подобрать</button>
+  {% if requests %}<a class="btn" href="{{ url_for('cfs') }}">Сбросить</a>{% endif %}
+</form>
+
+{% if plan %}
+<h2>Что поставить</h2>
+<div class="table-wrap"><table class="tbl">
+  <thead><tr><th>№</th><th>Нужно</th><th>Катушка</th><th>Остаток</th><th>Где</th><th>Ещё варианты</th></tr></thead>
+  <tbody>{% for p in plan %}{% set q = p.request %}{% set b = p.best %}
+    <tr class="{{ 'row-error' if not b or b.cfs_problem else '' }}">
+      <td>{{ q.slot }}</td>
+      <td class="nowrap">{% if q.color %}<span class="swatch" style="background: {{ q.color }}"></span>{% endif %}
+        {{ q.material or 'любой' }}{% if q.grams %} · {{ q.grams|grams }}{% endif %}</td>
+      <td>{% if b %}<a href="{{ url_for('spool_detail', spool_id=b.id) }}"><span class="swatch" style="background: {{ b.swatch }}"></span>
+          {% if b.number %}№{{ b.number }} {% endif %}{{ b.material }} {{ b.color_name }}</a>
+          <div class="small muted">{{ b.manufacturer }} · {{ b.match }} · {{ b.status_label|lower }}</div>
+          {% if b.alert %}<div class="alert-line">⚠ {{ b.alert }}</div>{% endif %}
+        {% else %}<span class="err">нет подходящей — не хватает остатка или материала</span>{% endif %}</td>
+      <td class="nowrap">{{ b.weight_left|grams if b else '' }}</td>
+      <td class="small">{{ b.location if b else '' }}</td>
+      <td class="small">{% for a in p.alternatives %}<a href="{{ url_for('spool_detail', spool_id=a.id) }}" title="{{ a.manufacturer }}, {{ a.weight_left|grams }}{{ ', ⚠ ' ~ a.alert if a.alert else '' }}"><span class="swatch" style="background: {{ a.swatch }}"></span>{% if a.number %}№{{ a.number }}{% endif %}</a>{% if not loop.last %} {% endif %}{% endfor %}</td>
+    </tr>
+  {% endfor %}</tbody>
+</table></div>
+{% endif %}
+{% if not is_admin %}<script src="{{ url_for('static', filename='slice.js') }}" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='cfs.js') }}" defer></script>
+{% endblock %}
