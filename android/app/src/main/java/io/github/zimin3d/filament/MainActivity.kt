@@ -2,10 +2,12 @@ package io.github.zimin3d.filament
 
 import android.Manifest
 import android.app.AlertDialog
+import android.app.PendingIntent
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -209,12 +211,35 @@ class MainActivity : ComponentActivity() {
                     apk.delete()
                     if (!cancelled.get()) Toast.makeText(this, "Не удалось скачать обновление: $error", Toast.LENGTH_LONG).show()
                 } else {
-                    val uri = FileProvider.getUriForFile(this, "$packageName.files", apk)
-                    startActivity(Intent(Intent.ACTION_VIEW)
-                        .setDataAndType(uri, "application/vnd.android.package-archive")
-                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
+                    startInstall(apk)
                 }
             }
+        }
+    }
+
+    /** Установка через PackageInstaller: система сама спросит подтверждение, а результат
+     *  (в т.ч. текст ошибки — другая подпись, нет места) придёт в InstallResultReceiver. */
+    private fun startInstall(apk: File) {
+        try {
+            val installer = packageManager.packageInstaller
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            params.setAppPackageName(packageName)
+            val id = installer.createSession(params)
+            installer.openSession(id).use { session ->
+                apk.inputStream().use { input ->
+                    session.openWrite("filament.apk", 0, apk.length()).use { out ->
+                        input.copyTo(out)
+                        session.fsync(out)
+                    }
+                }
+                val result = Intent(this, InstallResultReceiver::class.java)
+                val pi = PendingIntent.getBroadcast(this, id, result,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
+                session.commit(pi.intentSender)
+            }
+            Toast.makeText(this, "Устанавливаю обновление…", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Не удалось начать установку: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
