@@ -266,6 +266,45 @@ def test_saved_mapping_with_appended_columns(fresh_data):
     assert filament.saved_mapping(["другое"], [(2, ["1"])]) == importer.guess_mapping(["другое"], [(2, ["1"])])
 
 
+def make_data_xlsx(rows, date_cells=()):
+    """Минимальный .xlsx: строки — списки значений (str — общие строки, числа — числа)."""
+    shared, sheet = [], []
+    for r, row in enumerate(rows, 1):
+        cells = []
+        for c, v in enumerate(row):
+            ref = "%s%d" % (chr(65 + c), r)
+            if isinstance(v, str):
+                shared.append(v)
+                cells.append('<c r="%s" t="s"><v>%d</v></c>' % (ref, len(shared) - 1))
+            else:
+                style = ' s="1"' if ref in date_cells else ""
+                cells.append('<c r="%s"%s><v>%s</v></c>' % (ref, style, v))
+        sheet.append('<row r="%d">%s</row>' % (r, "".join(cells)))
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, "w") as z:
+        z.writestr("xl/workbook.xml", '<workbook><sheets><sheet name="A" sheetId="1" r:id="rId1"/></sheets></workbook>')
+        z.writestr("xl/_rels/workbook.xml.rels",
+                   '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>')
+        z.writestr("xl/worksheets/sheet1.xml", "<worksheet><sheetData>%s</sheetData></worksheet>" % "".join(sheet))
+        z.writestr("xl/sharedStrings.xml", "<sst>%s</sst>" % "".join("<si><t>%s</t></si>" % v for v in shared))
+        z.writestr("xl/styles.xml", '<styleSheet><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>')
+    return b.getvalue()
+
+
+def test_import_xlsx_file(admin, db):
+    raw = make_data_xlsx([["№", "Производитель", "Тип пластика", "Цвет", "Цена", "Дата покупки"],
+                     [1, "Bestfilament", "PETG", "Синий &amp; белый", 1290, 46000]], date_cells={"F2"})
+    r = admin.post("/import", data={"csrf": "t", "csv_file": (io.BytesIO(raw), "spools.xlsx")},
+                   content_type="multipart/form-data")
+    assert r.status_code == 302 and "/import/" in r.location
+    token = r.location.rstrip("/").split("/")[-1]
+    text = open(filament.os.path.join(filament.IMPORT_DIR, token, "sheet.csv"), encoding="utf-8").read()
+    assert "Синий & белый" in text and "2025-12-09" in text and ",1290," in text
+    bad = admin.post("/import", data={"csrf": "t", "csv_file": (io.BytesIO(b"PK\x03\x04junk"), "x.xlsx")},
+                     content_type="multipart/form-data")
+    assert "не файл Excel" in bad.get_data(as_text=True)
+
+
 def test_import_cp1251_semicolon_units(admin, db):
     text = ("Бренд;Материал;Цвет;Вес;Остаток;Цена;Дата покупки;Вскрыта\n"
             "SUNLU;pla+;Белый;1 кг;0,4 кг;1 389,00 руб;12.03.2025;да\n")
@@ -440,6 +479,13 @@ def test_empty_page(admin):
     assert "Пустая" in html and "Полная" not in html
     assert 'name="status"' not in html and "✕ Сбросить" not in html
     assert "Пустая" in admin.get("/export.csv?status=empty").get_data(as_text=True)
+
+
+def test_start_block_when_no_spools(admin):
+    html = admin.get("/").get_data(as_text=True)
+    assert "С чего начать" in html and "/import" in html and "Подключить сервер" not in html  # не телефон
+    add_spool(admin)
+    assert "С чего начать" not in admin.get("/").get_data(as_text=True)
 
 
 def test_fill_table(admin, db):

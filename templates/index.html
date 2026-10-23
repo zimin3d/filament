@@ -55,7 +55,16 @@
   <a class="btn" href="{{ url_for('export_csv', **f) }}" title="Скачать показанные катушки в CSV (Excel, Google Таблицы)">CSV</a>
 </form>
 
-{% if not spools %}
+{% if no_spools and is_admin and not empty_page %}
+<section class="weigh" style="display: block">
+  <h2 style="margin-top: 0">С чего начать</h2>
+  {% if phone %}<p><a class="btn primary" href="{{ url_for('sync_page') }}">↻ Подключить сервер</a>
+    — забрать катушки с сайта и дальше синхронизироваться с ним.</p>{% endif %}
+  <p><a class="btn{{ '' if phone else ' primary' }}" href="{{ url_for('import_start') }}">⤓ Загрузить из Google Таблицы / Excel</a>
+    — по ссылке на таблицу или файлом CSV.{% if phone %} Если данные уже есть на сервере — лучше подключить сервер, иначе катушки задвоятся.{% endif %}</p>
+  <p><a class="btn" href="{{ url_for('spool_new') }}">+ Добавить катушку вручную</a></p>
+</section>
+{% elif not spools %}
   <p class="empty">Ничего не найдено.{% if is_admin %} <a href="{{ url_for('spool_new') }}">Добавить катушку</a>{% endif %}</p>
 {% endif %}
 

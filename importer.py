@@ -239,6 +239,94 @@ def xlsx_photos(z, csv_text):
     return {line: (ext, z.read(target)) for line, (_, ext, target) in photos.items()}
 
 
+# встроенные форматы Excel, которые означают дату
+XLSX_DATE_FORMATS = set(range(14, 23)) | {45, 46, 47}
+XLSX_MAX_CELLS = 200_000
+
+
+def _xml_text(s):
+    return (s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&apos;", "'")
+            .replace("&amp;", "&"))
+
+
+def _col_index(ref):
+    n = 0
+    for ch in re.match(r"[A-Z]+", ref).group(0):
+        n = n * 26 + ord(ch) - 64
+    return n - 1
+
+
+def xlsx_read(raw):
+    """Файл Excel (.xlsx) → (CSV-текст первого листа, фото {строка: (расширение, байты)})."""
+    try:
+        z = zipfile.ZipFile(io.BytesIO(raw))
+        if sum(i.file_size for i in z.infolist()) > XLSX_MAX_BYTES:  # zip-бомба
+            raise SheetError("Файл слишком большой.")
+        shared = []
+        if "xl/sharedStrings.xml" in z.namelist():
+            shared = [_xml_text("".join(re.findall(r"<t[^>]*>([^<]*)</t>", si))) for si in
+                      re.findall(r"<si>(.*?)</si>", z.read("xl/sharedStrings.xml").decode(), re.S)]
+        date_styles = set()
+        if "xl/styles.xml" in z.namelist():
+            styles = z.read("xl/styles.xml").decode()
+            custom = {int(i) for i, code in re.findall(r'<numFmt [^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"', styles)
+                      if re.search(r"[dy]", re.sub(r'"[^"]*"|\[[^]]*\]', "", code), re.I)}
+            xfs = re.search(r"<cellXfs[^>]*>(.*?)</cellXfs>", styles, re.S)
+            for i, fmt in enumerate(re.findall(r'<xf [^>]*?numFmtId="(\d+)"', xfs.group(1) if xfs else "")):
+                if int(fmt) in XLSX_DATE_FORMATS or int(fmt) in custom:
+                    date_styles.add(i)
+        wb_rels = _rels(z, "xl/workbook.xml")
+        first = re.search(r'<sheet [^>]*r:id="([^"]+)"', z.read("xl/workbook.xml").decode())
+        sheet = wb_rels.get(first.group(1)) if first else None
+        if not sheet or sheet not in z.namelist():
+            raise SheetError("В файле нет листов.")
+        xml = z.read(sheet).decode()
+    except (zipfile.BadZipFile, KeyError, UnicodeDecodeError):
+        raise SheetError("Это не файл Excel (.xlsx).")
+    rows = {}
+    cells = re.findall(r'<c ([^>]*?)(?:/>|>(.*?)</c>)', xml, re.S)
+    if len(cells) > XLSX_MAX_CELLS:
+        raise SheetError("Таблица слишком большая.")
+    for attrs, body in cells:
+        ref = re.search(r'r="([A-Z]+)(\d+)"', attrs)
+        if not ref:
+            continue
+        kind = re.search(r'\bt="(\w+)"', attrs)
+        kind = kind.group(1) if kind else "n"
+        style = re.search(r'\bs="(\d+)"', attrs)
+        v = re.search(r"<v>([^<]*)</v>", body or "")
+        if kind == "s" and v:
+            value = shared[int(v.group(1))] if int(v.group(1)) < len(shared) else ""
+        elif kind == "inlineStr":
+            value = _xml_text("".join(re.findall(r"<t[^>]*>([^<]*)</t>", body or "")))
+        elif v:
+            value = _xml_text(v.group(1))
+            if kind == "n" and style and int(style.group(1)) in date_styles:
+                try:  # дата Excel — дни от 1899-12-30
+                    value = date.fromordinal(date(1899, 12, 30).toordinal() + int(float(value))).isoformat()
+                except (ValueError, OverflowError):
+                    pass
+            elif kind == "n" and re.fullmatch(r"-?\d+\.0+", value):
+                value = value.split(".")[0]
+        else:
+            value = ""
+        rows.setdefault(int(ref.group(2)), {})[_col_index(ref.group(1))] = value
+    if not rows:
+        raise SheetError("Лист пустой.")
+    width = max(max(r) for r in rows.values() if r) + 1
+    out = io.StringIO()
+    w = csv.writer(out)
+    for line in range(1, max(rows) + 1):  # пустые строки сохраняем — номера строк совпадают с фото
+        r = rows.get(line, {})
+        w.writerow([r.get(i, "") for i in range(width)])
+    text = out.getvalue()
+    try:
+        photos = xlsx_photos(z, text)
+    except (KeyError, ValueError):
+        photos = {}
+    return text, photos
+
+
 def decode(raw):
     for enc in ("utf-8-sig", "cp1251"):
         try:

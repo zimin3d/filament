@@ -18,9 +18,14 @@ def import_start():
         file = request.files.get("csv_file")
         try:
             if file and file.filename:
-                text = importer.decode(file.read())
+                raw = file.read()
+                photos = {}
+                if raw[:2] == b"PK":  # .xlsx — это zip
+                    text, photos = importer.xlsx_read(raw)
+                else:
+                    text = importer.decode(raw)
                 importer.parse_csv(text)
-                token = importer.save_tmp(IMPORT_DIR, text)
+                token = importer.save_tmp(IMPORT_DIR, text, photos)
             elif url:
                 token, photo_error = fetch_to_tmp(url)
                 if photo_error:
@@ -30,7 +35,7 @@ def import_start():
                     cfg["sheet_url"] = url
                     save_config(cfg)
             else:
-                raise importer.SheetError("Укажите ссылку на таблицу или выберите CSV-файл.")
+                raise importer.SheetError("Укажите ссылку на таблицу или выберите файл (Excel или CSV).")
         except importer.SheetError as e:
             flash(str(e), "error")
             return render_template("import.html", sheet_url=url, saved_url=saved_url)
