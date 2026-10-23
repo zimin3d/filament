@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Синхронизация{% endblock %}
+{% block content %}
+<h1>Синхронизация</h1>
+{% if phone %}
+<p class="small muted">Данные хранятся на телефоне и работают без сети. При синхронизации телефон отправляет свои изменения
+  на сервер и забирает чужие; если одну катушку меняли и там, и там — остаётся более позднее изменение.
+  Журнал изменений у каждого устройства свой.</p>
+{% if last %}<p>Последняя: {{ last.at }}. {{ summary(last) }}</p>{% endif %}
+<p>Не отправлено изменений: <b>{{ pending }}</b></p>
+<form method="post" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <button class="btn primary" name="action" value="run"{% if not cfg.sync_url or not cfg.sync_token %} disabled{% endif %}>↻ Синхронизировать</button>
+</form>
+<h2>Сервер</h2>
+<form method="post" class="weigh">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <label style="flex: 1 1 100%">Адрес<input name="url" value="{{ cfg.sync_url or '' }}" placeholder="https://example.com/filament/" inputmode="url" autocomplete="off"></label>
+  <label style="flex: 1 1 100%">Ключ{% if cfg.sync_token %} (сохранён — оставьте пустым, чтобы не менять){% endif %}
+    <input name="token" type="password" autocomplete="off"></label>
+  <button class="btn" name="action" value="save">Сохранить</button>
+</form>
+<p class="small muted">Ключ создаётся на сервере: «Синхронизация» в меню сайта.</p>
+{% else %}
+<p class="small muted">Приложение на телефоне хранит свою копию данных и обменивается изменениями с этим сервером.
+  Для этого ему нужны адрес и ключ.</p>
+<p>Адрес сервера: <code>{{ request.url_root }}</code></p>
+{% if token %}
+<p>Ключ — скопируйте в приложение сейчас, второй раз он не показывается:</p>
+<p><code class="big-input" style="user-select: all; word-break: break-all">{{ token }}</code></p>
+{% elif has_token %}<p>Ключ создан. Если потерян — создайте новый (старый перестанет действовать).</p>
+{% else %}<p>Ключа ещё нет.</p>{% endif %}
+<form method="post" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <button class="btn{{ '' if has_token else ' primary' }}" name="action" value="token">{{ 'Создать новый ключ' if has_token else 'Создать ключ' }}</button>
+</form>
+{% endif %}
+{% endblock %}

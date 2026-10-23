@@ -27,7 +27,7 @@ def inject_globals():
     def known_manufacturers():
         return [r[0] for r in get_db().execute(
             "SELECT DISTINCT manufacturer FROM spools ORDER BY manufacturer COLLATE NOCASE")]
-    return {"is_admin": is_admin(), "csrf_token": csrf_token,
+    return {"is_admin": is_admin(), "csrf_token": csrf_token, "phone": PHONE,
             "sheet_url": load_config().get("sheet_url", "") if is_admin() else "",
             "inbox_count": get_db().execute("SELECT COUNT(*) FROM inbox WHERE status = 'pending'").fetchone()[0]
             if is_admin() else 0, "materials": MATERIALS,

@@ -6,3 +6,9 @@ agent/k2_agent_state.json
 venv38/
 deploy/site.env
 private/
+android/app/src/main/python/
+android/app/src/main/res/mipmap-*/
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties

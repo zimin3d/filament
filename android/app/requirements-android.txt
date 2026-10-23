@@ -1,0 +1,5 @@
+# зависимости приложения внутри APK (Chaquopy); Pillow — та версия, что собрана для Android
+flask==3.1.3
+werkzeug==3.1.9
+qrcode==8.2
+pillow==11.0.0

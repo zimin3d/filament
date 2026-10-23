@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Филамент">
 </head>
-<body data-base="{{ url_for('index') }}" data-sw="{{ url_for('service_worker') }}">
+<body data-base="{{ url_for('index') }}" data-sw="{{ '' if phone else url_for('service_worker') }}">
 <header class="top">
   <div class="brand-wrap">
     <a class="brand" href="{{ url_for('index') }}"><span aria-hidden="true">🧵</span><span class="brand-text"> Филамент</span></a>
@@ -42,14 +42,17 @@
       <a class="btn" href="{{ url_for('import_start') }}">Импорт</a>
       <a class="btn" href="{{ url_for('fill') }}">Заполнить</a>
       <a class="btn" href="{{ url_for('history') }}">Журнал</a>
+      <a class="btn" href="{{ url_for('sync_page') }}">Синхронизация</a>
       {% if sheet_url %}<form method="post" action="{{ url_for('import_start') }}" class="inline">
         <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="sheet_url" value="{{ sheet_url }}">
         <button class="btn" title="Загрузить таблицу заново и показать, что изменилось">↻ Из таблицы</button>
       </form>{% endif %}
-      <form method="post" action="{{ url_for('logout') }}" class="inline">
+      {% if not phone %}<form method="post" action="{{ url_for('logout') }}" class="inline">
         <input type="hidden" name="csrf" value="{{ csrf_token() }}">
         <button class="btn" title="{{ session.get('user', '') }}">Выйти</button>
-      </form>
+      </form>{% endif %}
+    {% elif phone %}
+      <span class="muted small">вход сброшен — закройте и откройте приложение</span>
     {% else %}
       <span class="muted small">только просмотр</span>
       <a class="btn" href="{{ url_for('login') }}">Войти</a>

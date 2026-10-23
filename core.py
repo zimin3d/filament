@@ -15,6 +15,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import importer
 import slicer
+import sync
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("FILAMENT_DATA", os.path.join(BASE_DIR, "data"))
@@ -25,6 +26,8 @@ THUMB_SIZE = 480
 PHOTO_MAX_SIDE = 2000
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 IMPORT_DIR = os.path.join(DATA_DIR, "import")
+# приложение на телефоне: тот же код, сервер только на 127.0.0.1, данные синхронизируются с основным
+PHONE = os.environ.get("FILAMENT_MODE") == "phone"
 ALLOWED_PHOTO_EXT = {"jpg", "jpeg", "png", "webp", "gif"}
 
 MATERIALS = ["PLA", "PLA+", "PETG", "ABS", "ASA", "TPU", "PA", "PC", "HIPS", "PVA", "Другое"]
@@ -277,6 +280,7 @@ def init_db():
         if not db.execute("SELECT 1 FROM profiles LIMIT 1").fetchone():
             db.executemany("INSERT INTO profiles (material, nozzle, bed, speed, fan, drying, notes) "
                            "VALUES (?, ?, ?, ?, ?, ?, ?)", DEFAULT_PROFILES)
+        sync.setup(db)
 
 
 init_db()
@@ -297,6 +301,8 @@ def is_admin():
     """Админ, если вошёл и его ещё не удалили (старые сессии без имени — это «admin»)."""
     if session.get("admin") is not True:
         return False
+    if PHONE:  # на телефоне вход — по ключу, который передаёт приложение при запуске
+        return session.get("phone") is True
     if "admin_ok" not in g:
         pw_hash = admin_users().get(session.get("user", "admin"))
         g.admin_ok = bool(pw_hash) and secrets.compare_digest(session.get("pwv", ""), pw_version(pw_hash))
@@ -313,6 +319,8 @@ def current_user():
         return ""
     if request.path.startswith("/api/printer"):
         return "принтер"
+    if request.path.startswith("/api/sync"):
+        return "телефон"
     return session.get("user", "admin") if session.get("admin") else ""
 
 
@@ -332,7 +340,8 @@ def csrf_token():
     return session["csrf"]
 
 
-PUBLIC_ENDPOINTS = {"login", "static", "service_worker", "manifest", "offline", "api_printer_job", "showcase"}
+PUBLIC_ENDPOINTS = {"login", "static", "service_worker", "manifest", "offline", "api_printer_job", "showcase",
+                    "api_sync", "api_sync_file", "phone_start"}  # у API и запуска на телефоне — своя проверка ключа
 
 
 @app.before_request
