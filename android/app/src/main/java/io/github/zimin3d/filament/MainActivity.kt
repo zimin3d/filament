@@ -1,6 +1,7 @@
 package io.github.zimin3d.filament
 
 import android.Manifest
+import android.app.AlertDialog
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
@@ -18,6 +19,9 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -28,6 +32,7 @@ import com.chaquo.python.android.AndroidPlatform
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /** Окно приложения: внутри работает тот же Flask, что и на сервере (launcher.py), а здесь — WebView к нему. */
@@ -36,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private var cameraUri: Uri? = null
     private var pendingPermission: PermissionRequest? = null
+    @Volatile private var updating = false
 
     private val pickFiles = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
         var uris = WebChromeClient.FileChooserParams.parseResult(res.resultCode, res.data)
@@ -138,23 +144,70 @@ class MainActivity : ComponentActivity() {
             startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
             return
         }
-        Toast.makeText(this, "Скачиваю обновление…", Toast.LENGTH_SHORT).show()
+        if (updating) return
+        updating = true
+        // окно с полосой: сколько скачано из скольких, кнопка «Отмена»
+        val bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; isIndeterminate = true }
+        val label = TextView(this).apply { text = "Подключение…"; setPadding(0, 16, 0, 0) }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(56, 32, 56, 8)
+            addView(bar)
+            addView(label)
+        }
+        val cancelled = AtomicBoolean(false)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Скачивание обновления")
+            .setView(box)
+            .setCancelable(false)
+            .setNegativeButton("Отмена") { _, _ -> cancelled.set(true) }
+            .show()
         thread {
             val apk = File(File(cacheDir, "updates").apply { mkdirs() }, "filament.apk")
-            val ok = try {
+            val error: String? = try {
                 val conn = URL(url).openConnection() as HttpURLConnection
                 conn.instanceFollowRedirects = true
                 conn.connectTimeout = 20000
                 conn.readTimeout = 60000
                 if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
-                conn.inputStream.use { input -> apk.outputStream().use { input.copyTo(it) } }
-                true
+                val total = conn.contentLengthLong
+                var done = 0L
+                var shown = -1
+                conn.inputStream.use { input ->
+                    apk.outputStream().use { out ->
+                        val buf = ByteArray(64 * 1024)
+                        while (true) {
+                            if (cancelled.get()) throw InterruptedException()
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            done += n
+                            val pct = if (total > 0) (done * 100 / total).toInt() else -1
+                            if (pct != shown) {
+                                shown = pct
+                                val mb = "%.1f".format(done / 1048576.0) +
+                                    (if (total > 0) " из " + "%.1f".format(total / 1048576.0) else "") + " МБ"
+                                runOnUiThread {
+                                    if (pct >= 0) { bar.isIndeterminate = false; bar.progress = pct }
+                                    label.text = if (pct >= 0) "$pct% · $mb" else mb
+                                }
+                            }
+                        }
+                    }
+                }
+                if (total > 0 && done != total) throw IllegalStateException("файл скачан не полностью")
+                null
+            } catch (e: InterruptedException) {
+                "отменено"
             } catch (e: Exception) {
-                false
+                e.message ?: e.javaClass.simpleName
             }
             runOnUiThread {
-                if (!ok) {
-                    Toast.makeText(this, "Не удалось скачать обновление", Toast.LENGTH_LONG).show()
+                updating = false
+                if (dialog.isShowing) dialog.dismiss()
+                if (error != null) {
+                    apk.delete()
+                    if (!cancelled.get()) Toast.makeText(this, "Не удалось скачать обновление: $error", Toast.LENGTH_LONG).show()
                 } else {
                     val uri = FileProvider.getUriForFile(this, "$packageName.files", apk)
                     startActivity(Intent(Intent.ACTION_VIEW)
