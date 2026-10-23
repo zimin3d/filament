@@ -2,8 +2,22 @@
 {% block title %}Синхронизация{% endblock %}
 {% block content %}
 <h1>Синхронизация</h1>
+{% if phone %}
+<h2>Приложение</h2>
+{% if update %}
+<div class="flash ok">Доступна версия <b>{{ update.version }}</b> (установлена {{ update.current or '?' }}).
+  <a class="btn primary" href="{{ url_for('app_update_install', url=update.apk) }}">⤓ Скачать и установить</a>
+  <div class="small muted">Android попросит подтвердить установку; данные сохранятся.</div></div>
+{% endif %}
+<form method="post" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <span>Версия: <b>{{ app_version or '?' }}</b></span>
+  <button class="btn" name="action" value="update">Проверить обновление</button>
+</form>
+{% else %}
 <p><a class="btn primary" href="{{ releases_url }}" target="_blank" rel="noopener">⤓ Приложение для Android</a>
-  <span class="small muted">{% if phone %}новые версии ставятся поверх, данные сохраняются{% else %}файл .apk из последнего выпуска — установить на телефон{% endif %}</span></p>
+  <span class="small muted">файл .apk из последнего выпуска — установить на телефон</span></p>
+{% endif %}
 {% if phone %}
 <p class="small muted">Данные хранятся на телефоне и работают без сети. При синхронизации телефон отправляет свои изменения
   на сервер и забирает чужие; если одну катушку меняли и там, и там — остаётся более позднее изменение.

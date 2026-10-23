@@ -14,15 +14,16 @@ _url = None
 _lock = threading.Lock()
 
 
-def start(data_dir):
-    """Запускает сервер один раз; возвращает адрес первой страницы (с ключом входа)."""
+def start(data_dir, version=""):
+    """Запускает сервер один раз; возвращает адрес первой страницы (с ключом входа).
+    version — версия APK (для «Проверить обновление»)."""
     global _url
     with _lock:
         if _url:
             return _url
         key = secrets.token_urlsafe(24)
         os.environ.update(FILAMENT_DATA=data_dir, FILAMENT_MODE="phone", FILAMENT_PHONE_KEY=key,
-                          FILAMENT_SECURE_COOKIE="0")
+                          FILAMENT_SECURE_COOKIE="0", FILAMENT_APP_VERSION=version or "")
         import app  # noqa: E402 — только после переменных окружения
         from werkzeug.serving import make_server
 

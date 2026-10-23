@@ -184,3 +184,24 @@ def test_sync_page_token(admin):
     page = admin.get("/sync").get_data(as_text=True)
     assert tok not in page  # показывается один раз
     assert "github.com/zimin3d/filament/releases/latest" in page
+
+
+def test_app_update_check(monkeypatch):
+    vs = filament.views.sync
+    assert vs.version_key("v0.10") > vs.version_key("v0.9") > vs.version_key("dev") == (0,)
+    release = {"tag_name": "v0.4", "assets": [{"name": "filament-v0.4.apk",
+               "browser_download_url": vs.APK_PREFIX + "v0.4/filament-v0.4.apk"}]}
+    fetch = lambda url: json.dumps(release).encode()  # noqa: E731
+    monkeypatch.setenv("FILAMENT_APP_VERSION", "v0.3")
+    r = vs.check_app_update(fetch)
+    assert r["newer"] and r["apk"].endswith("v0.4.apk")
+    monkeypatch.setenv("FILAMENT_APP_VERSION", "v0.4")
+    assert not vs.check_app_update(fetch)["newer"]
+    release["assets"][0]["browser_download_url"] = "https://evil.example/x.apk"  # чужой адрес не предлагаем
+    monkeypatch.setenv("FILAMENT_APP_VERSION", "v0.3")
+    assert not vs.check_app_update(fetch)["newer"]
+
+
+def test_app_update_install_outside_app(admin):
+    r = admin.get("/app-update/install?url=x")
+    assert r.status_code == 302 and r.location.endswith("/sync")

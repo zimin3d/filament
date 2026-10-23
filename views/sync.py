@@ -18,6 +18,32 @@ import sync
 
 SYNC_TIMEOUT = 60
 RELEASES_URL = "https://github.com/zimin3d/filament/releases/latest"  # APK для Android
+RELEASES_API = "https://api.github.com/repos/zimin3d/filament/releases/latest"
+APK_PREFIX = "https://github.com/zimin3d/filament/releases/download/"  # только отсюда приложение скачает APK
+
+
+def version_key(v):
+    """'v0.12' → (0, 12); всё нечисловое — 0 (сборки без метки, 'dev', считаются старыми)."""
+    return tuple(int(p) if p.isdigit() else 0 for p in re.findall(r"\d+|[^\d.]+", (v or "").lstrip("vV"))
+                 if p != ".") or (0,)
+
+
+def check_app_update(fetch=None):
+    """Последний выпуск на GitHub: {'version', 'apk', 'newer'}; исключение — если не удалось спросить."""
+    if fetch is None:
+        def fetch(url):
+            req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return r.read()
+    data = json.loads(fetch(RELEASES_API))
+    tag = str(data.get("tag_name") or "")
+    apk = next((a.get("browser_download_url") for a in data.get("assets") or []
+                if str(a.get("name", "")).endswith(".apk")), None)
+    if apk and not apk.startswith(APK_PREFIX):
+        apk = None
+    current = os.environ.get("FILAMENT_APP_VERSION", "")
+    return {"version": tag, "apk": apk, "current": current,
+            "newer": bool(apk) and version_key(tag) > version_key(current)}
 _running = threading.Lock()  # автосинхронизация и кнопка не должны идти одновременно
 
 
@@ -155,6 +181,15 @@ def sync_summary(r):
 
 # --- страницы ---------------------------------------------------------------
 
+@app.route("/app-update/install")
+@admin_required
+def app_update_install():
+    """Эту ссылку перехватывает окно приложения (скачивает и устанавливает APK). Сюда попадаем,
+    только если открыли её не из приложения."""
+    flash("Установка обновления работает только из приложения на телефоне.", "error")
+    return redirect(url_for("sync_page"))
+
+
 @app.route("/phone-start")
 def phone_start():
     """Приложение на телефоне открывает эту страницу с ключом запуска — так входит только оно."""
@@ -192,6 +227,16 @@ def sync_page():
                 flash("Синхронизировано. " + sync_summary(run_sync()), "ok")
             except (OSError, ValueError, KeyError) as e:
                 flash("Не удалось: %s" % (getattr(e, "reason", None) or e), "error")
+        elif PHONE and action == "update":
+            try:
+                upd = check_app_update()
+            except (OSError, ValueError) as e:
+                flash("Не удалось проверить: %s" % (getattr(e, "reason", None) or e), "error")
+                return redirect(url_for("sync_page"))
+            if not upd["newer"]:
+                flash("Установлена последняя версия (%s)." % (upd["current"] or "?"), "ok")
+                return redirect(url_for("sync_page"))
+            return render_sync(db, cfg, update=upd)
         elif not PHONE and action == "token":
             cfg["sync_token"] = secrets.token_urlsafe(24)
             save_config(cfg)
@@ -199,8 +244,13 @@ def sync_page():
             return render_template("sync.html", phone=False, token=cfg["sync_token"], has_token=True,
                                    releases_url=RELEASES_URL)
         return redirect(url_for("sync_page"))
+    return render_sync(db, cfg)
+
+
+def render_sync(db, cfg, update=None):
     last = sync.state(db, "last_result")
-    return render_template("sync.html", phone=PHONE, cfg=cfg, releases_url=RELEASES_URL, last=json.loads(last) if last else None,
+    return render_template("sync.html", phone=PHONE, cfg=cfg, releases_url=RELEASES_URL, update=update,
+                           app_version=os.environ.get("FILAMENT_APP_VERSION", ""), last=json.loads(last) if last else None,
                            has_token=bool(cfg.get("sync_token")), token=None,
                            pending=db.execute("SELECT COUNT(*) FROM sync_log WHERE seq > ?",
                                               (int(sync.state(db, "local_seq", 0)),)).fetchone()[0],

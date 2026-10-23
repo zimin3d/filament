@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
+import android.provider.Settings
 import android.webkit.CookieManager
 import android.webkit.PermissionRequest
 import android.webkit.URLUtil
@@ -60,7 +61,13 @@ class MainActivity : ComponentActivity() {
         web.settings.allowFileAccess = false
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                if (request.url.host == "127.0.0.1") return false
+                if (request.url.host == "127.0.0.1") {
+                    if (request.url.path?.endsWith("/app-update/install") == true) {
+                        request.url.getQueryParameter("url")?.let { installUpdate(it) }
+                        return true
+                    }
+                    return false
+                }
                 // ссылки на магазины и т.п. — во внешнем браузере
                 try { startActivity(Intent(Intent.ACTION_VIEW, request.url)) } catch (_: ActivityNotFoundException) {}
                 return true
@@ -102,8 +109,9 @@ class MainActivity : ComponentActivity() {
         web.loadData("<p style='font:18px sans-serif;padding:2em;color:#666'>Запуск…</p>", "text/html; charset=utf-8", null)
         thread {
             if (!Python.isStarted()) Python.start(AndroidPlatform(this))
+            val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
             val url = Python.getInstance().getModule("launcher")
-                .callAttr("start", File(filesDir, "data").path).toString()
+                .callAttr("start", File(filesDir, "data").path, version).toString()
             runOnUiThread { web.loadUrl(url) }
         }
     }
@@ -120,6 +128,41 @@ class MainActivity : ComponentActivity() {
             .putExtra(MediaStore.EXTRA_OUTPUT, cameraUri)
             .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         return Intent.createChooser(pick, "Фото").putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(camera))
+    }
+
+    /** Обновление: APK из выпуска на GitHub → системный установщик (тот же ключ подписи — данные сохраняются). */
+    private fun installUpdate(url: String) {
+        if (!url.startsWith("https://github.com/zimin3d/filament/releases/download/") || !url.endsWith(".apk")) return
+        if (!packageManager.canRequestPackageInstalls()) {
+            Toast.makeText(this, "Разрешите установку из этого приложения и нажмите кнопку ещё раз", Toast.LENGTH_LONG).show()
+            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            return
+        }
+        Toast.makeText(this, "Скачиваю обновление…", Toast.LENGTH_SHORT).show()
+        thread {
+            val apk = File(File(cacheDir, "updates").apply { mkdirs() }, "filament.apk")
+            val ok = try {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.instanceFollowRedirects = true
+                conn.connectTimeout = 20000
+                conn.readTimeout = 60000
+                if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
+                conn.inputStream.use { input -> apk.outputStream().use { input.copyTo(it) } }
+                true
+            } catch (e: Exception) {
+                false
+            }
+            runOnUiThread {
+                if (!ok) {
+                    Toast.makeText(this, "Не удалось скачать обновление", Toast.LENGTH_LONG).show()
+                } else {
+                    val uri = FileProvider.getUriForFile(this, "$packageName.files", apk)
+                    startActivity(Intent(Intent.ACTION_VIEW)
+                        .setDataAndType(uri, "application/vnd.android.package-archive")
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }
+        }
     }
 
     /** CSV, этикетки и т.п.: скачиваем со своего сервера (с cookie входа) в «Загрузки». */
