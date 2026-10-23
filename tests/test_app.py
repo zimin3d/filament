@@ -507,6 +507,18 @@ def test_qr_labels_button(admin):
     assert "Есть" in labels and "Пустая" not in labels
 
 
+def test_pasted_password_cleanup(anon, monkeypatch):
+    answers = iter(["\x1b[200~secret-pass-123\x1b[201~", " secret-pass-123\n"])
+    import cli
+    monkeypatch.setattr(cli, "getpass", lambda prompt: next(answers))
+    filament.set_admin("admin", cli.ask_password("x"))
+    anon.get("/login")
+    with anon.session_transaction() as s:
+        tok = s["csrf"]
+    r = anon.post("/login", data={"csrf": tok, "password": "secret-pass-123 "})
+    assert r.status_code == 302 and "/login" not in r.location
+
+
 def test_fill_table(admin, db):
     a = add_spool(admin, number="1", price="")
     b = add_spool(admin, number="2", price="900", purchase_date="2026-01-01")

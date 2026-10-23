@@ -40,7 +40,7 @@ def login():
         return render_template("login.html", viewer_mode=bool(cfg.get("viewer_password_hash")),
                                many=len(users) > 1), 429
     if request.method == "POST":
-        password = request.form.get("password", "")
+        password = clean_password(request.form.get("password", ""))
         name = request.form.get("user", "").strip().lower()
         viewer_hash = cfg.get("viewer_password_hash")
         role = user = None

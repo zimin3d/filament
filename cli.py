@@ -18,11 +18,12 @@ from core import *  # noqa: F401,F403
 from logic import *  # noqa: F401,F403
 
 def ask_password(title):
-    pw = getpass("Новый пароль %s: " % title)
+    pw = clean_password(getpass("Новый пароль %s: " % title))
     if len(pw) < 10:
         sys.exit("Пароль должен быть не короче 10 символов.")
-    if getpass("Повторите: ") != pw:
+    if clean_password(getpass("Повторите: ")) != pw:
         sys.exit("Пароли не совпадают.")
+    print("Принят пароль из %d символов, начинается на «%s», заканчивается на «%s»." % (len(pw), pw[0], pw[-1]))
     return generate_password_hash(pw)
 
 

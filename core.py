@@ -309,6 +309,12 @@ def is_admin():
     return g.admin_ok
 
 
+def clean_password(pw):
+    """Пароль, вставленный из буфера: терминал может обернуть его невидимыми ESC[200~ … ESC[201~
+    (bracketed paste), а буфер — добавить пробел или перевод строки. Ни то ни другое не считаем."""
+    return pw.replace("\x1b[200~", "").replace("\x1b[201~", "").strip()
+
+
 def pw_version(pw_hash):
     """Метка пароля в сессии: сменили пароль — старые сессии недействительны."""
     return hashlib.sha256(pw_hash.encode()).hexdigest()[:16]
