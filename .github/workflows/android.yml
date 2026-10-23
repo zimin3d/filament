@@ -48,7 +48,8 @@ jobs:
             BAD="$(printf '%s' "$B64" | tr -d 'A-Za-z0-9+/=' | wc -c)"
             # без содержимого ключа: только длина и признаки, по которым видно, что вставлено не то
             echo "::notice::KEYSTORE_B64: длина ${#B64} (ожидается 1192), лишних символов $BAD, начало MIID: $([ "${B64:0:4}" = MIID ] && echo да || echo нет)"
-            if ! printf '%s' "$B64" | base64 -d > "$RUNNER_TEMP/filament.p12" 2>/dev/null; then
+            # лишнее «=» в конце (частая ошибка копирования) — выравниваем; верность ключа проверит keytool
+            if ! printf '%s' "$B64" | python3 -c "import base64,sys; s=sys.stdin.read().rstrip('='); s+='='*(-len(s)%4); sys.stdout.buffer.write(base64.b64decode(s, validate=True))" > "$RUNNER_TEMP/filament.p12" 2>/dev/null; then
               echo "::error::KEYSTORE_B64 не расшифровывается: вставьте одну строку из ~/.android-keys/filament.p12.b64"
               exit 1
             fi
