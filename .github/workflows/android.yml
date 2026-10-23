@@ -44,7 +44,14 @@ jobs:
             echo "::warning::Нет секрета KEYSTORE_B64 — APK подписан отладочным ключом, только для проверки"
           else
             # пробелы и переносы, попавшие при вставке секрета, не мешают
-            printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/filament.p12"
+            B64="$(printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n\t')"
+            BAD="$(printf '%s' "$B64" | tr -d 'A-Za-z0-9+/=' | wc -c)"
+            # без содержимого ключа: только длина и признаки, по которым видно, что вставлено не то
+            echo "KEYSTORE_B64: длина ${#B64} (ожидается 1192), лишних символов $BAD, начало MIID: $([ "${B64:0:4}" = MIID ] && echo да || echo нет)"
+            if ! printf '%s' "$B64" | base64 -d > "$RUNNER_TEMP/filament.p12" 2>/dev/null; then
+              echo "::error::KEYSTORE_B64 не расшифровывается: вставьте одну строку из ~/.android-keys/filament.p12.b64"
+              exit 1
+            fi
             echo "KEYSTORE_FILE=$RUNNER_TEMP/filament.p12" >> "$GITHUB_ENV"
             echo "SIGNED=1" >> "$GITHUB_ENV"
           fi
