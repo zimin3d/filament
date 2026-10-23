@@ -1,11 +1,14 @@
 # Сборка APK. Запуск: метка версии (git tag v1.0 && git push --tags) — APK появится в Releases;
 # или вручную на вкладке Actions — APK будет в артефактах сборки.
-# Нужны секреты репозитория: KEYSTORE_B64 (ключ подписи в base64) и KEYSTORE_PASSWORD.
+# Нужны секреты репозитория: KEYSTORE_B64 (ключ подписи в base64) и KEYSTORE_PASSWORD;
+# без них — проверочная сборка с отладочным ключом (в Releases не выкладывается).
 name: Android APK
 
 on:
   push:
     tags: ["v*"]
+    branches: [master]
+    paths: ["android/**", ".github/workflows/android.yml"]
   workflow_dispatch:
 
 permissions:
@@ -37,14 +40,16 @@ jobs:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
         run: |
           if [ -z "$KEYSTORE_B64" ]; then
-            echo "::error::Нет секрета KEYSTORE_B64 — без постоянного ключа обновления не встанут поверх установленной версии"
-            exit 1
+            # проверочная сборка: отладочный ключ, в Releases не попадает
+            echo "::warning::Нет секрета KEYSTORE_B64 — APK подписан отладочным ключом, только для проверки"
+          else
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/filament.p12"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/filament.p12" >> "$GITHUB_ENV"
+            echo "SIGNED=1" >> "$GITHUB_ENV"
           fi
-          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/filament.p12"
 
       - name: Сборка
         env:
-          KEYSTORE_FILE: ${{ runner.temp }}/filament.p12
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}
@@ -60,7 +65,7 @@ jobs:
           path: out/*.apk
 
       - name: Релиз
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' && env.SIGNED == '1'
         uses: softprops/action-gh-release@v2
         with:
           files: out/*.apk
