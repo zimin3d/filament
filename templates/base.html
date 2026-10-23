@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru" class="no-js">
+<html lang="ru" class="no-js"{% if theme %} data-theme="{{ theme }}"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -22,6 +22,9 @@
     {% if request.endpoint not in ('index', 'login') %}<a class="btn back-btn" href="{{ list_url() }}">← Все катушки</a>{% endif %}
   </div>
   <div class="nav-wrap">
+    <a class="btn" href="{{ url_for('theme', next=request.script_root + request.full_path) }}"
+       title="{{ {'dark': 'Тема: тёмная', 'light': 'Тема: светлая'}.get(theme, 'Тема: как в системе') }} — нажмите, чтобы сменить"
+       aria-label="Сменить тему">{{ {'dark': '🌙', 'light': '☀️'}.get(theme, '🌓') }}</a>
     <a class="btn" href="{{ url_for('scan') }}" title="Сканировать QR этикетки" aria-label="Сканер">📷</a>
     {% if is_admin %}<a class="btn primary" href="{{ url_for('spool_new') }}">+ Катушка</a>{% endif %}
     <button class="btn nav-toggle" type="button" aria-expanded="false" aria-controls="mainnav">☰</button>
@@ -33,6 +36,7 @@
     <a class="btn" href="{{ url_for('cfs') }}">CFS</a>
     <a class="btn" href="{{ url_for('stl_local') }}">STL</a>
     <a class="btn" href="{{ url_for('stats') }}">Статистика</a>
+    <a class="btn" href="{{ url_for('labels', status='active') }}" title="Этикетки с QR-кодом для всех катушек в наличии (остаток больше 0)">QR-коды</a>
     <a class="btn" href="{{ url_for('jobs') }}">Печати</a>
     <a class="btn" href="{{ url_for('gallery') }}">Галерея</a>
     <a class="btn{{ ' primary' if maint_due else '' }}" href="{{ url_for('printer') }}">🔧 Принтер{% if maint_due %}: {{ maint_due }}{% endif %}</a>

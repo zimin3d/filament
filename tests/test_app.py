@@ -488,6 +488,25 @@ def test_start_block_when_no_spools(admin):
     assert "С чего начать" not in admin.get("/").get_data(as_text=True)
 
 
+def test_theme_toggle(anon):
+    assert "data-theme" not in anon.get("/").get_data(as_text=True).split(">")[1]
+    r = anon.get("/theme?next=/stats")
+    assert r.status_code == 302 and r.location.endswith("/stats") and "theme=dark" in r.headers["Set-Cookie"]
+    assert '<html lang="ru" class="no-js" data-theme="dark">' in anon.get("/").get_data(as_text=True)
+    assert "theme=light" in anon.get("/theme").headers["Set-Cookie"]
+    assert anon.get("/theme?next=//evil.example").location.endswith("/")  # чужой адрес не принимаем
+    assert "evil" not in anon.get("/theme?next=//evil.example").location
+
+
+def test_qr_labels_button(admin):
+    add_spool(admin, color_name="Есть")
+    add_spool(admin, color_name="Пустая", weight_left="0")
+    html = admin.get("/").get_data(as_text=True)
+    assert "status=active" in html and "QR-коды" in html
+    labels = admin.get("/labels?status=active").get_data(as_text=True)
+    assert "Есть" in labels and "Пустая" not in labels
+
+
 def test_fill_table(admin, db):
     a = add_spool(admin, number="1", price="")
     b = add_spool(admin, number="2", price="900", purchase_date="2026-01-01")

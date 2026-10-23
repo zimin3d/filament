@@ -78,3 +78,20 @@ def logout():
 def too_large(e):
     flash("Файл слишком большой (максимум 15 МБ).", "error")
     return redirect(request.referrer or url_for("index"))
+
+
+THEMES = {"": "Тема: как в системе", "dark": "Тема: тёмная", "light": "Тема: светлая"}
+
+
+@app.route("/theme")
+def theme():
+    """Переключение темы по кругу: как в системе → тёмная → светлая. Хранится в cookie на год."""
+    order = list(THEMES)
+    cur = request.cookies.get("theme", "")
+    nxt = order[(order.index(cur) + 1) % len(order)] if cur in order else "dark"
+    back = request.args.get("next", "")
+    if not back.startswith("/") or back.startswith("//") or "\\" in back:
+        back = url_for("index")
+    resp = redirect(back)
+    resp.set_cookie("theme", nxt, max_age=365 * 86400, samesite="Lax", httponly=True)
+    return resp

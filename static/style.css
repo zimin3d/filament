@@ -4,10 +4,14 @@
   --accent: #2563eb; --accent-text: #fff; --danger: #dc2626; --ok: #16a34a; --warn: #d97706;
   --radius: 10px;
 }
+/* тема: по системе, либо выбранная вручную (cookie theme → data-theme на <html>) */
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #111318; --surface: #1b1e25; --text: #e6e8ec; --muted: #9aa1ad; --border: #2c313b;
-          --accent: #3b82f6; }
+  :root:not([data-theme="light"]) { --bg: #111318; --surface: #1b1e25; --text: #e6e8ec; --muted: #9aa1ad;
+          --border: #2c313b; --accent: #3b82f6; }
 }
+:root[data-theme="dark"] { color-scheme: dark; --bg: #111318; --surface: #1b1e25; --text: #e6e8ec; --muted: #9aa1ad;
+        --border: #2c313b; --accent: #3b82f6; }
+:root[data-theme="light"] { color-scheme: light; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
        font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }

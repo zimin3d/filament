@@ -341,7 +341,7 @@ def csrf_token():
 
 
 PUBLIC_ENDPOINTS = {"login", "static", "service_worker", "manifest", "offline", "api_printer_job", "showcase",
-                    "api_sync", "api_sync_file", "phone_start"}  # у API и запуска на телефоне — своя проверка ключа
+                    "api_sync", "api_sync_file", "phone_start", "theme"}  # у API и запуска на телефоне — своя проверка ключа
 
 
 @app.before_request
