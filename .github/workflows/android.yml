@@ -43,14 +43,24 @@ jobs:
             # проверочная сборка: отладочный ключ, в Releases не попадает
             echo "::warning::Нет секрета KEYSTORE_B64 — APK подписан отладочным ключом, только для проверки"
           else
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/filament.p12"
+            # пробелы и переносы, попавшие при вставке секрета, не мешают
+            printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/filament.p12"
             echo "KEYSTORE_FILE=$RUNNER_TEMP/filament.p12" >> "$GITHUB_ENV"
             echo "SIGNED=1" >> "$GITHUB_ENV"
           fi
 
-      - name: Сборка
+      - name: Проверка пароля ключа
+        if: env.SIGNED == '1'
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          KEYSTORE_PASSWORD="$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d ' \r\n\t')"
+          keytool -list -storetype pkcs12 -keystore "$KEYSTORE_FILE" -storepass "$KEYSTORE_PASSWORD" -alias filament > /dev/null
+          echo "::add-mask::$KEYSTORE_PASSWORD"
+          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Сборка
+        env:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}
         run: |
