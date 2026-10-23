@@ -10,6 +10,7 @@ import threading
 import time
 
 SYNC_EVERY = 15 * 60
+PRINTER_EVERY = 60
 _url = None
 _lock = threading.Lock()
 
@@ -30,6 +31,7 @@ def start(data_dir, version=""):
         srv = make_server("127.0.0.1", 0, app.app, threaded=True)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         threading.Thread(target=_auto_sync, args=(app,), daemon=True).start()
+        threading.Thread(target=_printer_poll, args=(app,), daemon=True).start()
         _url = "http://127.0.0.1:%d/phone-start?key=%s" % (srv.server_port, key)
         return _url
 
@@ -45,3 +47,16 @@ def _auto_sync(app):
             except Exception as e:  # нет сети и т.п. — попробуем позже
                 print("sync:", e)
         time.sleep(SYNC_EVERY)
+
+
+def _printer_poll(app):
+    """Связь с принтером в локальной сети: законченные печати — в учёт, пока приложение открыто."""
+    time.sleep(10)
+    while True:
+        if app.load_config().get("printer_host"):
+            try:
+                with app.app.test_request_context():
+                    app.views.printer.poll_printer()
+            except Exception as e:  # принтер выключен, другая сеть — попробуем позже
+                print("printer:", e)
+        time.sleep(PRINTER_EVERY)

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Связь с принтером{% endblock %}
+{% block content %}
+<h1>🖨 Связь с принтером</h1>
+<p class="small muted">Creality K2 и другие принтеры на Klipper (Moonraker). Работает в локальной сети:
+  {% if phone %}телефон должен быть в той же Wi‑Fi, что и принтер{% else %}сервер должен видеть принтер в своей сети — иначе используйте приложение на телефоне или агента K2{% endif %}.
+  Законченные печати забираются из истории принтера: один пластик и выбрана катушка «на принтере» — списывается сразу, иначе — во «Входящие».</p>
+
+{% if cfg.printer_host %}
+<section class="stats">
+  {% if live %}
+  <div><span class="num">{{ live.state }}</span><span class="lbl">{{ live.file or 'принтер' }}</span></div>
+  {% if live.progress is not none and live.raw_state in ('printing', 'paused') %}<div><span class="num">{{ live.progress }}%</span><span class="lbl">{{ live.minutes }} мин печати</span></div>{% endif %}
+  <div><span class="num">{{ live.nozzle|round|int if live.nozzle is not none else '—' }}°</span><span class="lbl">сопло{% if live.nozzle_target %} → {{ live.nozzle_target|round|int }}°{% endif %}</span></div>
+  <div><span class="num">{{ live.bed|round|int if live.bed is not none else '—' }}°</span><span class="lbl">стол{% if live.bed_target %} → {{ live.bed_target|round|int }}°{% endif %}</span></div>
+  {% else %}
+  <div><span class="num">нет связи</span><span class="lbl">{{ error }}</span></div>
+  {% endif %}
+</section>
+<p>На принтере: {% if spool %}<a href="{{ url_for('spool_detail', spool_id=spool.id) }}">№{{ spool.number }} {{ spool.material }} {{ spool.color_name }}</a>
+  {% else %}<span class="muted">не выбрана — однокрасочные печати пойдут во «Входящие» (выбрать: «🖨 Поставил на принтер» на странице катушки)</span>{% endif %}</p>
+<form method="post" class="inline">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <button class="btn primary" name="action" value="poll">↻ Забрать печати</button>
+  <a class="btn" href="{{ url_for('printer_link') }}">Обновить состояние</a>
+</form>
+<p class="small muted">{% if phone %}Пока приложение открыто, печати забираются автоматически раз в минуту. {% endif %}{% if cfg.printer_checked %}Последняя проверка: {{ cfg.printer_checked }}.{% endif %}</p>
+{% endif %}
+
+<h2>Принтер</h2>
+<form method="post" class="weigh">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <label>Адрес (IP){{ '' }}<input name="host" value="{{ cfg.printer_host or '' }}" placeholder="192.168.1.50" inputmode="decimal" autocomplete="off"></label>
+  <label>Порт<input name="port" value="{{ cfg.printer_port or 7125 }}" inputmode="numeric"></label>
+  <button class="btn" name="action" value="save">Сохранить</button>
+</form>
+<p class="small muted">IP принтера — в его меню (Настройки → Сеть) или в роутере. Порт Moonraker у K2 — 7125.
+  Печати, закончившиеся до подключения, не списываются (их можно загрузить в «Обслуживание принтера» → история).</p>
+{% endblock %}

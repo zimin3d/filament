@@ -2,6 +2,7 @@
 {% block title %}Обслуживание принтера{% endblock %}
 {% block content %}
 <h1>🔧 Обслуживание принтера</h1>
+{% if is_admin %}<p><a class="btn primary" href="{{ url_for('printer_link') }}">🖨 Связь с принтером</a></p>{% endif %}
 <section class="stats">
   <div><span class="num">{{ '%.1f'|format(hours) }} ч</span><span class="lbl">наработка по журналу печатей ({{ jobs_count }})</span></div>
   <div><span class="num">{{ items|selectattr('due')|list|length }}</span><span class="lbl">пора сделать</span></div>

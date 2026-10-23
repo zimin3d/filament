@@ -1,7 +1,9 @@
 """Принтер: API агента, входящие задания, импорт истории, обслуживание, разбор файлов слайсера."""
 import json
+import os
 import re
 import secrets
+import time
 from datetime import date
 
 from flask import abort, flash, jsonify, redirect, render_template, request, url_for
@@ -136,7 +138,12 @@ def api_printer_job():
     auth = request.headers.get("Authorization", "")
     if not token or not secrets.compare_digest(auth, "Bearer " + token):
         abort(403)
-    data = request.get_json(silent=True) or {}
+    result = accept_printer_job(request.get_json(silent=True) or {})
+    return jsonify(result), (400 if result.get("error") else 200)
+
+
+def accept_printer_job(data):
+    """Законченная печать (от агента или из связи с принтером): {ok, auto} / {ok, duplicate} / {ok: False, error}."""
     ext_id = str(data.get("job_id") or "").strip()[:64]
     try:
         raw_weights = data.get("weights") or []
@@ -146,12 +153,12 @@ def api_printer_job():
         if any(w > 10000 for w in weights):
             raise ValueError
     except (TypeError, ValueError):
-        return jsonify(ok=False, error="weights — список чисел, граммы"), 400
+        return {"ok": False, "error": "weights — список чисел, граммы"}
     if not ext_id or not weights:
-        return jsonify(ok=False, error="нужны job_id и weights"), 400
+        return {"ok": False, "error": "нужны job_id и weights"}
     db = get_db()
     if db.execute("SELECT 1 FROM inbox WHERE ext_id = ?", (ext_id,)).fetchone():
-        return jsonify(ok=True, duplicate=True)
+        return {"ok": True, "duplicate": True}
     name = re.sub(r"(\.gcode)?(\.3mf)?$", "", str(data.get("name") or ""))[:200]
     minutes = int(data["minutes"]) if data.get("minutes") else None
     day = str(data.get("day") or date.today().isoformat())[:10]
@@ -167,7 +174,7 @@ def api_printer_job():
         record_job(db, spool["id"], day, name, weights[0], minutes)
         audit_end("Печать с принтера", spool["id"], audit_state)
     db.commit()
-    return jsonify(ok=True, auto=auto)
+    return {"ok": True, "auto": auto}
 
 
 @app.route("/inbox", methods=["GET", "POST"])
@@ -247,3 +254,97 @@ def jobs():
     totals = {"count": len(rows), "grams": sum(r["grams"] or 0 for r in rows),
               "minutes": sum(r["minutes"] or 0 for r in rows), "cost": sum(r["cost"] or 0 for r in rows)}
     return render_template("jobs.html", jobs=rows, totals=totals)
+
+
+# --- связь с принтером в локальной сети (Creality K2 и другие Klipper/Moonraker) -------------
+
+PRINTER_TIMEOUT = 5
+PRINTER_STATES = {"standby": "ожидает", "printing": "печатает", "paused": "пауза", "complete": "готово",
+                  "cancelled": "отменено", "error": "ошибка"}
+
+
+def printer_addr(cfg=None):
+    cfg = cfg if cfg is not None else load_config()
+    host = cfg.get("printer_host") or ""
+    return ("http://%s:%d" % (host, int(cfg.get("printer_port") or 7125))) if host else None
+
+
+def moonraker(path, cfg=None):
+    import urllib.request
+    base = printer_addr(cfg)
+    if not base:
+        raise ValueError("Адрес принтера не задан.")
+    with urllib.request.urlopen(base + path, timeout=PRINTER_TIMEOUT) as r:
+        return json.loads(r.read(2_000_000)).get("result") or {}
+
+
+def printer_live():
+    """Состояние принтера сейчас: печать, прогресс, температуры. Исключение — если не отвечает."""
+    st = moonraker("/printer/objects/query?print_stats&display_status&extruder&heater_bed").get("status") or {}
+    ps, ex, bed = st.get("print_stats") or {}, st.get("extruder") or {}, st.get("heater_bed") or {}
+    progress = (st.get("display_status") or {}).get("progress")
+    return {"state": PRINTER_STATES.get(ps.get("state"), ps.get("state") or "?"), "raw_state": ps.get("state"),
+            "file": os.path.basename(str(ps.get("filename") or "")),
+            "progress": round(progress * 100) if isinstance(progress, (int, float)) else None,
+            "minutes": round((ps.get("print_duration") or 0) / 60),
+            "nozzle": ex.get("temperature"), "nozzle_target": ex.get("target"),
+            "bed": bed.get("temperature"), "bed_target": bed.get("target")}
+
+
+def poll_printer():
+    """Новые законченные печати из истории принтера → учёт (как от агента). Печати, закончившиеся
+    до подключения принтера, не трогаем. Возвращает (списано, во входящих)."""
+    cfg = load_config()
+    since = float(cfg.get("printer_since") or 0)
+    agent = agent_module()
+    jobs_ = moonraker("/server/history/list?limit=50&order=desc", cfg).get("jobs") or []
+    auto = pending = 0
+    for job in reversed(jobs_):
+        if not isinstance(job, dict) or job.get("status") not in agent.FINAL:
+            continue
+        if float(job.get("end_time") or 0) <= since:
+            continue
+        payload = agent.job_payload(job)
+        if not payload["weights"]:
+            continue
+        r = accept_printer_job(payload)
+        if r.get("ok") and not r.get("duplicate"):
+            auto, pending = auto + bool(r.get("auto")), pending + (not r.get("auto"))
+    cfg = load_config()
+    cfg["printer_checked"] = time.strftime("%Y-%m-%d %H:%M")
+    save_config(cfg)
+    return auto, pending
+
+
+@app.route("/printer/link", methods=["GET", "POST"])
+@admin_required
+def printer_link():
+    cfg = load_config()
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "save":
+            host = request.form.get("host", "").strip()
+            port = request.form.get("port", "").strip() or "7125"
+            if host and not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", host) or not port.isdigit() or not 0 < int(port) < 65536:
+                flash("Адрес — IP или имя (например 192.168.1.50), порт — число.", "error")
+                return redirect(url_for("printer_link"))
+            if host != cfg.get("printer_host"):  # новый принтер: старую историю не списываем
+                cfg["printer_since"] = time.time()
+            cfg.update(printer_host=host, printer_port=int(port))
+            save_config(cfg)
+            flash("Сохранено." if host else "Связь с принтером отключена.", "ok")
+        elif action == "poll":
+            try:
+                auto, pending = poll_printer()
+                flash("Новых печатей: %d (списано сразу %d, во «Входящих» %d)." % (auto + pending, auto, pending), "ok")
+            except (OSError, ValueError) as e:
+                flash("Принтер не отвечает: %s" % (getattr(e, "reason", None) or e), "error")
+        return redirect(url_for("printer_link"))
+    live = error = None
+    if cfg.get("printer_host"):
+        try:
+            live = printer_live()
+        except (OSError, ValueError) as e:
+            error = str(getattr(e, "reason", None) or e)
+    return render_template("printer_link.html", cfg=cfg, live=live, error=error, spool=printer_spool(),
+                           phone=PHONE)

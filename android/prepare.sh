@@ -8,6 +8,7 @@ RES="$ROOT/android/app/src/main/res"
 rm -rf "$PY" && mkdir -p "$PY"
 cp "$ROOT"/{app,core,logic,cli,importer,labelpng,notify,slicer,stlpreview,sync}.py "$ROOT/android/launcher.py" "$PY/"
 cp -r "$ROOT"/{views,templates,static,fonts} "$PY/"
+mkdir -p "$PY/agent" && cp "$ROOT/agent/k2_agent.py" "$PY/agent/"  # разбор истории Moonraker
 find "$PY" -name __pycache__ -prune -exec rm -rf {} +
 # значок — тот же, что у сайта (Android сам масштабирует)
 mkdir -p "$RES/mipmap-xxxhdpi"
