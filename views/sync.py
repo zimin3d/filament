@@ -17,6 +17,7 @@ from logic import *  # noqa: F401,F403
 import sync
 
 SYNC_TIMEOUT = 60
+RELEASES_URL = "https://github.com/zimin3d/filament/releases/latest"  # APK для Android
 _running = threading.Lock()  # автосинхронизация и кнопка не должны идти одновременно
 
 
@@ -195,10 +196,11 @@ def sync_page():
             cfg["sync_token"] = secrets.token_urlsafe(24)
             save_config(cfg)
             flash("Новый ключ создан — старый больше не действует.", "ok")
-            return render_template("sync.html", phone=False, token=cfg["sync_token"], has_token=True)
+            return render_template("sync.html", phone=False, token=cfg["sync_token"], has_token=True,
+                                   releases_url=RELEASES_URL)
         return redirect(url_for("sync_page"))
     last = sync.state(db, "last_result")
-    return render_template("sync.html", phone=PHONE, cfg=cfg, last=json.loads(last) if last else None,
+    return render_template("sync.html", phone=PHONE, cfg=cfg, releases_url=RELEASES_URL, last=json.loads(last) if last else None,
                            has_token=bool(cfg.get("sync_token")), token=None,
                            pending=db.execute("SELECT COUNT(*) FROM sync_log WHERE seq > ?",
                                               (int(sync.state(db, "local_seq", 0)),)).fetchone()[0],

@@ -181,4 +181,6 @@ def test_sync_page_token(admin):
     r = admin.post("/sync", data={"csrf": "t", "action": "token"})
     tok = filament.load_config()["sync_token"]
     assert tok in r.get_data(as_text=True)
-    assert tok not in admin.get("/sync").get_data(as_text=True)  # показывается один раз
+    page = admin.get("/sync").get_data(as_text=True)
+    assert tok not in page  # показывается один раз
+    assert "github.com/zimin3d/filament/releases/latest" in page
