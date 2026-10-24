@@ -85,15 +85,13 @@ def help_page():
     return render_template("help.html", releases_url=RELEASES_URL)
 
 
-THEMES = {"": "Тема: как в системе", "dark": "Тема: тёмная", "light": "Тема: светлая"}
+NEXT_THEME = {"": "light", "dark": "light", "light": "system", "system": "dark"}  # без cookie — тёмная
 
 
 @app.route("/theme")
 def theme():
-    """Переключение темы по кругу: как в системе → тёмная → светлая. Хранится в cookie на год."""
-    order = list(THEMES)
-    cur = request.cookies.get("theme", "")
-    nxt = order[(order.index(cur) + 1) % len(order)] if cur in order else "dark"
+    """Переключение темы по кругу: тёмная → светлая → как в системе. Хранится в cookie на год."""
+    nxt = NEXT_THEME.get(request.cookies.get("theme", ""), "light")
     back = request.args.get("next", "")
     if not safe_next(back):
         back = url_for("index")

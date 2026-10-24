@@ -1,0 +1,109 @@
+{# Навигация: разделы, боковая панель (компьютер) = лист «Ещё» (телефон), подвкладки и таб-бар (телефон). #}
+{% set SECTIONS = {
+  'index': 'spools', 'empty_spools': 'spools', 'stock': 'spools', 'stats': 'spools', 'report': 'spools',
+  'spool_detail': 'spools', 'spool_new': 'spools', 'spool_edit': 'spools',
+  'enough': 'print', 'cfs': 'print', 'jobs': 'print', 'gallery': 'print', 'stl_local': 'print',
+  'model_view': 'print', 'profiles': 'print', 'profile_edit': 'print',
+  'scan': 'scan',
+  'printer': 'printer', 'printer_link': 'printer', 'inbox': 'printer', 'import_history': 'printer',
+} %}
+{% set section = SECTIONS.get(request.endpoint, 'more') %}
+
+{# иконки — static/icons.svg (кэшируется отдельно от страниц) #}
+{% macro icon(name, cls='ic') %}<svg class="{{ cls }}" aria-hidden="true"><use href="{{ url_for('static', filename='icons.svg') }}#i-{{ name }}"/></svg>{% endmacro %}
+
+{# пункты разделов: (endpoint, подпись, иконка, адрес, бейдж) — общие для боковой панели и подвкладок #}
+{% macro items(sec) %}
+  {%- set out = [] -%}
+  {%- if sec == 'spools' -%}
+    {%- set _ = out.append(('index', 'Все катушки', 'spool', url_for('index'), 0)) -%}
+    {%- set _ = out.append(('empty_spools', 'Закончились', 'empty', url_for('empty_spools'), 0)) -%}
+    {%- set _ = out.append(('stock', 'Остатки и закупка', 'package', url_for('stock'), 0)) -%}
+    {%- set _ = out.append(('stats', 'Статистика', 'chart', url_for('stats'), 0)) -%}
+  {%- elif sec == 'print' -%}
+    {%- set _ = out.append(('enough', 'Хватит ли?', 'scale', url_for('enough'), 0)) -%}
+    {%- set _ = out.append(('cfs', 'Подбор в CFS', 'grid', url_for('cfs'), 0)) -%}
+    {%- set _ = out.append(('jobs', 'Журнал печатей', 'list', url_for('jobs'), 0)) -%}
+    {%- set _ = out.append(('gallery', 'Галерея', 'image', url_for('gallery'), 0)) -%}
+    {%- set _ = out.append(('stl_local', 'Просмотр STL', 'box', url_for('stl_local'), 0)) -%}
+    {%- set _ = out.append(('profiles', 'Настройки печати', 'sliders', url_for('profiles'), 0)) -%}
+  {%- elif sec == 'printer' -%}
+    {%- set _ = out.append(('printer', 'Обслуживание', 'wrench', url_for('printer'), maint_due)) -%}
+    {%- if is_admin -%}
+      {%- set _ = out.append(('printer_link', 'Связь с принтером', 'link', url_for('printer_link'), 0)) -%}
+      {%- if inbox_count -%}{%- set _ = out.append(('inbox', 'Входящие', 'inbox', url_for('inbox'), inbox_count)) -%}{%- endif -%}
+      {%- set _ = out.append(('import_history', 'История с принтера', 'download', url_for('import_history'), 0)) -%}
+    {%- endif -%}
+  {%- endif -%}
+  {{- caller(out) -}}
+{% endmacro %}
+
+{% macro badge(kind, n) %}{% if n %}<span class="nav-badge" data-badge="{{ kind }}">{{ n }}</span>{% endif %}{% endmacro %}
+{% set BADGE = {'printer': 'maint', 'inbox': 'inbox'} %}
+
+{% macro sidebar() %}
+<div class="sheet-backdrop" aria-hidden="true"></div>
+<nav id="mainnav" aria-label="Меню">
+  <div class="grabber" aria-hidden="true"></div>
+  <a class="nav-brand" href="{{ url_for('index') }}">{{ icon('spool', 'ic logo') }}Филамент</a>
+  {% if is_admin %}<a class="btn primary nav-add" href="{{ url_for('spool_new') }}">{{ icon('plus') }}Катушка</a>{% endif %}
+  {% for sec, title in [('spools', 'Катушки'), ('print', 'Печать'), ('printer', 'Принтер')] %}
+  <div class="nav-group"><div class="nav-h">{{ title }}</div>
+    {% call(list) items(sec) %}{% for ep, label, ic, href, n in list %}
+    <a class="nav-i" href="{{ href }}"{% if request.endpoint == ep %} aria-current="page"{% endif %}>{{ icon(ic) }}{{ label }}{{ badge(BADGE.get(ep, ep), n) }}</a>
+    {% endfor %}{% endcall %}
+    {% if sec == 'print' %}<a class="nav-i nav-scan" href="{{ url_for('scan') }}"{% if request.endpoint == 'scan' %} aria-current="page"{% endif %}>{{ icon('scan') }}Сканер этикеток</a>{% endif %}
+  </div>
+  {% endfor %}
+  <div class="nav-group"><div class="nav-h">Данные</div>
+    <a class="nav-i" href="{{ url_for('labels', status='active') }}" title="Этикетки с QR-кодом для всех катушек в наличии (остаток больше 0)">{{ icon('qr') }}QR-этикетки</a>
+    {% if is_admin %}
+    <a class="nav-i" href="{{ url_for('import_start') }}"{% if request.endpoint in ('import_start', 'import_preview') %} aria-current="page"{% endif %}>{{ icon('sheet') }}Импорт таблицы</a>
+    {% if sheet_url %}<form method="post" action="{{ url_for('import_start') }}" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="sheet_url" value="{{ sheet_url }}">
+      <button class="nav-i" title="Загрузить таблицу заново и показать, что изменилось">{{ icon('refresh') }}↻ Из таблицы</button>
+    </form>{% endif %}
+    <a class="nav-i" href="{{ url_for('fill') }}"{% if request.endpoint == 'fill' %} aria-current="page"{% endif %}>{{ icon('table') }}Быстрое заполнение</a>
+    <a class="nav-i" href="{{ url_for('history') }}"{% if request.endpoint == 'history' %} aria-current="page"{% endif %}>{{ icon('history') }}Журнал изменений</a>
+    {% endif %}
+    {% if is_admin %}<a class="nav-i" href="{{ url_for('sync_page') }}"{% if request.endpoint == 'sync_page' %} aria-current="page"{% endif %}>{{ icon('refresh') }}Синхронизация</a>{% endif %}
+  </div>
+  <div class="nav-group nav-foot">
+    <a class="nav-i" href="{{ url_for('help_page') }}"{% if request.endpoint == 'help_page' %} aria-current="page"{% endif %}>{{ icon('help') }}Справка</a>
+    {% set th = {'light': ('sun', 'Тема: светлая'), 'system': ('monitor', 'Тема: как в системе')}.get(theme, ('moon', 'Тема: тёмная')) %}
+    <a class="nav-i" href="{{ url_for('theme', next=request.script_root + request.full_path) }}" title="Нажмите, чтобы сменить тему">{{ icon(th[0]) }}{{ th[1] }}</a>
+    {% if is_admin %}
+      {% if not phone %}<form method="post" action="{{ url_for('logout') }}" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="nav-i" title="{{ session.get('user', '') }}">{{ icon('logout') }}Выйти<span class="t3 small">{{ session.get('user', '') }}</span></button>
+      </form>{% endif %}
+    {% elif phone %}
+      <span class="nav-note warn">вход сброшен — закройте и откройте приложение</span>
+    {% else %}
+      <span class="nav-note">только просмотр</span>
+      <a class="nav-i" href="{{ url_for('login') }}">{{ icon('login') }}Войти</a>
+    {% endif %}
+  </div>
+</nav>
+{% endmacro %}
+
+{% macro subnav() %}
+{% if section in ('spools', 'print', 'printer') %}
+<nav class="subnav" aria-label="Раздел">
+  {% call(list) items(section) %}{% for ep, label, ic, href, n in list %}
+  <a class="chip" href="{{ href }}"{% if request.endpoint == ep %} aria-current="page"{% endif %}>{{ label }}{{ badge(BADGE.get(ep, ep), n) }}</a>
+  {% endfor %}{% endcall %}
+</nav>
+{% endif %}
+{% endmacro %}
+
+{% macro tabbar() %}
+{% set attn = maint_due + inbox_count %}
+<nav class="tabbar" aria-label="Разделы">
+  <a class="tab" href="{{ url_for('index') }}"{% if section == 'spools' %} aria-current="true"{% endif %}><span class="ic-wrap">{{ icon('spool') }}</span>Катушки</a>
+  <a class="tab" href="{{ url_for('enough') }}"{% if section == 'print' %} aria-current="true"{% endif %}><span class="ic-wrap">{{ icon('layers') }}</span>Печать</a>
+  <a class="tab scan" href="{{ url_for('scan') }}"{% if section == 'scan' %} aria-current="true"{% endif %}><span class="ic-wrap">{{ icon('scan') }}</span>Сканер</a>
+  <a class="tab" href="{{ url_for('printer') }}"{% if section == 'printer' %} aria-current="true"{% endif %}{% if attn %} aria-label="Принтер, требует внимания: {{ attn }}"{% endif %}><span class="ic-wrap">{{ icon('printer') }}{{ badge('printer', attn) }}</span>Принтер</a>
+  <button class="tab nav-toggle" type="button" aria-expanded="false" aria-controls="mainnav"{% if section == 'more' %} aria-current="true"{% endif %}><span class="ic-wrap">{{ icon('more') }}</span>Ещё</button>
+</nav>
+{% endmacro %}

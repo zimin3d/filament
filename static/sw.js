@@ -1,6 +1,6 @@
 // Сервис-воркер: страницы — из сети (данные всегда свежие), при отсутствии сети —
 // последняя сохранённая копия; статика и фото — из кэша.
-const CACHE = "filament-v3";  // v3: скрипты вынесены из страниц (строгий CSP)
+const CACHE = "filament-v4";  // v4: редизайн (новые стили, шрифт цифр)
 const scope = self.registration.scope;
 
 self.addEventListener("install", (e) => {

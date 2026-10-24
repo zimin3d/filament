@@ -29,7 +29,7 @@ def inject_globals():
             "SELECT DISTINCT manufacturer FROM spools ORDER BY manufacturer COLLATE NOCASE")]
     theme = request.cookies.get("theme", "") if has_request_context() else ""
     return {"is_admin": is_admin(), "csrf_token": csrf_token, "phone": PHONE,
-            "theme": theme if theme in ("dark", "light") else "",
+            "theme": theme if theme in ("dark", "light", "system") else "",
             "sheet_url": load_config().get("sheet_url", "") if is_admin() else "",
             "inbox_count": get_db().execute("SELECT COUNT(*) FROM inbox WHERE status = 'pending'").fetchone()[0]
             if is_admin() else 0, "materials": MATERIALS,

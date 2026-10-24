@@ -16,7 +16,8 @@ document.documentElement.classList.remove("no-js");
     var sel = e.target.closest("[data-select-all]");
     if (sel) { sel.select(); return; }
     var nav = e.target.closest(".nav-toggle");
-    if (nav) { nav.setAttribute("aria-expanded", document.body.classList.toggle("nav-open")); return; }
+    if (nav) { setNav(!document.body.classList.contains("nav-open")); return; }
+    if (e.target.closest(".sheet-backdrop")) { setNav(false); return; }
     var pw = e.target.closest(".pw-toggle");
     if (pw) {
       var i = document.getElementById(pw.dataset.target || "pw"), s = i.type === "password";
@@ -26,6 +27,24 @@ document.documentElement.classList.remove("no-js");
       pw.textContent = s ? "🙈" : "👁";
       i.focus();
     }
+  });
+
+  // лист «Ещё» на телефоне: фокус в лист при открытии, обратно на кнопку при закрытии; Esc закрывает
+  function setNav(open) {
+    var btn = document.querySelector(".nav-toggle");
+    document.body.classList.toggle("nav-open", open);
+    if (btn) btn.setAttribute("aria-expanded", open);
+    if (open) { var first = document.querySelector("#mainnav .nav-i"); if (first) first.focus({ preventScroll: true }); }
+    else if (btn) btn.focus({ preventScroll: true });
+  }
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && document.body.classList.contains("nav-open")) setNav(false);
+  });
+  // «назад» возвращает страницу из bfcache как была — с открытым листом; закрываем без перевода фокуса
+  window.addEventListener("pageshow", function () {
+    document.body.classList.remove("nav-open");
+    var btn = document.querySelector(".nav-toggle");
+    if (btn) btn.setAttribute("aria-expanded", false);
   });
 
   document.addEventListener("change", function (e) {
@@ -56,6 +75,10 @@ document.documentElement.classList.remove("no-js");
         window.addEventListener("load", function () { var g = document.querySelector("#weigh input[name=gross]"); if (g) g.focus(); });
       }
     }
+
+    // подвкладки раздела: активная — в видимой части строки
+    var cur = document.querySelector(".subnav [aria-current]");
+    if (cur && cur.scrollIntoView) cur.scrollIntoView({ inline: "center", block: "nearest" });
 
     var sw = document.body && document.body.dataset.sw;
     if (sw && "serviceWorker" in navigator) navigator.serviceWorker.register(sw);

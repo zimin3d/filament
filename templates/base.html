@@ -2,11 +2,12 @@
 <html lang="ru" class="no-js"{% if theme %} data-theme="{{ theme }}"{% endif %}>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="color-scheme" content="{{ {'light': 'light', 'system': 'light dark'}.get(theme, 'dark') }}">
 <script src="{{ url_for('static', filename='app.js') }}"></script>
-<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1b1e25" media="(prefers-color-scheme: dark)">
+{% if theme == 'system' %}<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1013" media="(prefers-color-scheme: dark)">
+{% else %}<meta name="theme-color" content="{{ '#ffffff' if theme == 'light' else '#0e1013' }}">{% endif %}
 <title>{% block title %}Филамент{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <link rel="manifest" href="{{ url_for('manifest') }}">
@@ -15,61 +16,31 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Филамент">
 </head>
-<body data-base="{{ url_for('index') }}" data-sw="{{ '' if phone else url_for('service_worker') }}">
+{% import "_nav.html" as nav with context %}
+<body data-base="{{ url_for('index') }}" data-sw="{{ '' if phone else url_for('service_worker') }}" data-section="{{ nav.section }}"
+      {%- if request.endpoint in ('spool_new', 'spool_edit', 'profile_edit', 'import_start', 'import_preview', 'fill') %} data-form{% endif %}>
+<a class="skip" href="#main">К содержимому</a>
+<div class="shell">
+{{ nav.sidebar() }}
+<div class="page">
 <header class="top">
-  <div class="brand-wrap">
-    <a class="brand" href="{{ url_for('index') }}"><span aria-hidden="true">🧵</span><span class="brand-text"> Филамент</span></a>
-    {% if request.endpoint not in ('index', 'login') %}<a class="btn back-btn" href="{{ list_url() }}">← Все катушки</a>{% endif %}
+  {% if request.endpoint not in ('index', 'login') %}<a class="btn back-btn" href="{{ list_url() }}">← Все катушки</a>
+  {% else %}<a class="brand" href="{{ url_for('index') }}">{{ nav.icon('spool', 'ic logo') }}<span class="brand-text">Филамент</span></a>{% endif %}
+  <div class="top-actions">
+    <a class="btn icon desk-only" href="{{ url_for('scan') }}" title="Сканировать QR этикетки" aria-label="Сканер">{{ nav.icon('scan') }}</a>
+    {% if is_admin and nav.section == 'spools' %}<a class="btn primary top-add" href="{{ url_for('spool_new') }}" aria-label="Новая катушка">{{ nav.icon('plus') }}<span class="desk-only">Катушка</span></a>{% endif %}
   </div>
-  <div class="nav-wrap">
-    <a class="btn" href="{{ url_for('theme', next=request.script_root + request.full_path) }}"
-       title="{{ {'dark': 'Тема: тёмная', 'light': 'Тема: светлая'}.get(theme, 'Тема: как в системе') }} — нажмите, чтобы сменить"
-       aria-label="Сменить тему">{{ {'dark': '🌙', 'light': '☀️'}.get(theme, '🌓') }}</a>
-    <a class="btn" href="{{ url_for('scan') }}" title="Сканировать QR этикетки" aria-label="Сканер">📷</a>
-    {% if is_admin %}<a class="btn primary" href="{{ url_for('spool_new') }}">+ Катушка</a>{% endif %}
-    <button class="btn nav-toggle" type="button" aria-expanded="false" aria-controls="mainnav">☰</button>
-  </div>
-  <nav id="mainnav">
-    <a class="btn" href="{{ url_for('stock') }}">Остатки</a>
-    <a class="btn" href="{{ url_for('empty_spools') }}">Закончились</a>
-    <a class="btn" href="{{ url_for('enough') }}">Хватит ли?</a>
-    <a class="btn" href="{{ url_for('cfs') }}">CFS</a>
-    <a class="btn" href="{{ url_for('stl_local') }}">STL</a>
-    <a class="btn" href="{{ url_for('stats') }}">Статистика</a>
-    <a class="btn" href="{{ url_for('help_page') }}">❓ Справка</a>
-    <a class="btn" href="{{ url_for('labels', status='active') }}" title="Этикетки с QR-кодом для всех катушек в наличии (остаток больше 0)">QR-коды</a>
-    <a class="btn" href="{{ url_for('jobs') }}">Печати</a>
-    <a class="btn" href="{{ url_for('gallery') }}">Галерея</a>
-    <a class="btn{{ ' primary' if maint_due else '' }}" href="{{ url_for('printer') }}">🔧 Принтер{% if maint_due %}: {{ maint_due }}{% endif %}</a>
-    <a class="btn" href="{{ url_for('profiles') }}">Настройки печати</a>
-    {% if is_admin %}
-      {% if inbox_count %}<a class="btn primary" href="{{ url_for('inbox') }}">🖨 Входящие: {{ inbox_count }}</a>{% endif %}
-      <a class="btn" href="{{ url_for('import_start') }}">Импорт</a>
-      <a class="btn" href="{{ url_for('fill') }}">Заполнить</a>
-      <a class="btn" href="{{ url_for('history') }}">Журнал</a>
-      <a class="btn" href="{{ url_for('sync_page') }}">Синхронизация</a>
-      {% if sheet_url %}<form method="post" action="{{ url_for('import_start') }}" class="inline">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="sheet_url" value="{{ sheet_url }}">
-        <button class="btn" title="Загрузить таблицу заново и показать, что изменилось">↻ Из таблицы</button>
-      </form>{% endif %}
-      {% if not phone %}<form method="post" action="{{ url_for('logout') }}" class="inline">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <button class="btn" title="{{ session.get('user', '') }}">Выйти</button>
-      </form>{% endif %}
-    {% elif phone %}
-      <span class="muted small">вход сброшен — закройте и откройте приложение</span>
-    {% else %}
-      <span class="muted small">только просмотр</span>
-      <a class="btn" href="{{ url_for('login') }}">Войти</a>
-    {% endif %}
-  </nav>
 </header>
-<main>
+{{ nav.subnav() }}
+<main id="main">
   {% with msgs = get_flashed_messages(with_categories=true) %}
-    {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+    {% for cat, m in msgs %}<div role="status" class="flash {{ cat }}">{{ m }}</div>{% endfor %}
   {% endwith %}
   {% block content %}{% endblock %}
 </main>
+</div>
+</div>
+{{ nav.tabbar() }}
 {% if is_admin %}<script src="{{ url_for('static', filename='resize.js') }}" defer></script>
 <script src="{{ url_for('static', filename='slice.js') }}" defer></script>{% endif %}
 </body>

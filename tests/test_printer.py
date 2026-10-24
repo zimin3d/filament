@@ -43,7 +43,7 @@ def test_multicolor_goes_to_inbox(admin, anon, db):
     set_token()
     a, b = add_spool(admin, number="1"), add_spool(admin, number="2")
     api(anon, {"job_id": "8", "name": "logo", "weights": [20, 3.5], "status": "cancelled"})
-    assert "Входящие: 1" in admin.get("/").get_data(as_text=True)
+    assert 'data-badge="inbox">1<' in admin.get("/").get_data(as_text=True)
     html = admin.get("/inbox").get_data(as_text=True)
     assert "logo (отменена)" in html
     item = db.execute("SELECT id FROM inbox").fetchone()[0]
@@ -124,7 +124,7 @@ def test_import_history_to_inbox_and_skip_all(admin, db):
     admin.post("/import-history", data={"csrf": "t", "to_inbox": "1",
                                         "history": (io.BytesIO(json.dumps(HISTORY).encode()), "h.json")},
                content_type="multipart/form-data")
-    assert "Входящие: 2" in admin.get("/").get_data(as_text=True)
+    assert 'data-badge="inbox">2<' in admin.get("/").get_data(as_text=True)
     admin.post("/inbox", data={"csrf": "t", "skip_all": "1"})
     assert db.execute("SELECT COUNT(*) FROM inbox WHERE status = 'pending'").fetchone()[0] == 0
 

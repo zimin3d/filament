@@ -2,16 +2,16 @@
 {% block title %}{% if s.number %}№{{ s.number }} {% endif %}{{ s.manufacturer }} {{ s.material }} {{ s.color_name }}{% endblock %}
 {% block content %}
 <article class="detail">
-  <div class="photo" style="--c: {{ s.color_hex }}">
+  <div class="photo">
     {% if s.photo %}<a href="{{ url_for('uploaded', name=s.photo) }}" target="_blank"><img src="{{ url_for('uploaded', name=s.photo) }}" alt="Фото катушки"></a>
-    {% else %}<div class="nophoto">нет фото</div>{% endif %}
+    {% else %}<div class="nophoto" title="нет фото"><span class="spool-art" style="--sw: {{ s.swatch }}" aria-hidden="true"></span></div>{% endif %}
   </div>
   <div class="info">
     <h1><span class="swatch big" style="background: {{ s.swatch }}"></span>{{ s.color_name or 'Без названия' }}{% if s.number %} <span class="num-tag inline">№{{ s.number }}</span>{% endif %}</h1>
     <p class="sub">{{ s.manufacturer }} · <b>{{ s.material }}</b> · {{ s.diameter }} мм · <span class="pill status-{{ s.status }}">{{ s.status_label }}</span></p>
 
     {% if s.alert %}<div class="alert-box">⚠ {{ s.alert }}</div>{% endif %}
-    <div class="bar big"><span style="width: {{ s.percent_left }}%"></span></div>
+    <div class="bar big"{% if s.percent_left < 10 %} data-level="low"{% elif s.percent_left < 25 %} data-level="mid"{% endif %}><span style="width: {{ s.percent_left }}%"></span></div>
     <p class="small">Осталось {{ s.weight_left|grams }} из {{ s.weight_total|grams }} ({{ s.percent_left }}%){% if s.meters_left %} · {{ s.meters_left|meters }}{% endif %}</p>
     {% if is_admin %}
     <div id="spool-left" data-left="{{ s.weight_left }}" hidden></div>

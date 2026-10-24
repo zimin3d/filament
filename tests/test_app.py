@@ -194,7 +194,9 @@ def test_export_roundtrip(admin):
 def test_gradient_swatch(admin):
     add_spool(admin, color_name="красный, зеленый")
     add_spool(admin, color_name="радужный")
-    assert admin.get("/").get_data(as_text=True).count("linear-gradient") == 2
+    html = admin.get("/").get_data(as_text=True)
+    assert html.count('class="swatch" style="background: linear-gradient') == 2
+    assert html.count('class="spool-art" style="--sw: linear-gradient') == 2  # и нарисованная катушка
 
 
 # --- импорт ------------------------------------------------------------------
@@ -490,10 +492,13 @@ def test_start_block_when_no_spools(admin):
 
 def test_theme_toggle(anon):
     assert "data-theme" not in anon.get("/").get_data(as_text=True).split(">")[1]
+    assert '<meta name="color-scheme" content="dark">' in anon.get("/").get_data(as_text=True)  # без cookie — тёмная
     r = anon.get("/theme?next=/stats")
-    assert r.status_code == 302 and r.location.endswith("/stats") and "theme=dark" in r.headers["Set-Cookie"]
-    assert '<html lang="ru" class="no-js" data-theme="dark">' in anon.get("/").get_data(as_text=True)
-    assert "theme=light" in anon.get("/theme").headers["Set-Cookie"]
+    assert r.status_code == 302 and r.location.endswith("/stats") and "theme=light" in r.headers["Set-Cookie"]
+    assert '<html lang="ru" class="no-js" data-theme="light">' in anon.get("/").get_data(as_text=True)
+    assert "theme=system" in anon.get("/theme").headers["Set-Cookie"]
+    assert '<meta name="color-scheme" content="light dark">' in anon.get("/").get_data(as_text=True)
+    assert "theme=dark" in anon.get("/theme").headers["Set-Cookie"]  # по кругу
     assert anon.get("/theme?next=//evil.example").location.endswith("/")  # чужой адрес не принимаем
     assert "evil" not in anon.get("/theme?next=//evil.example").location
 
@@ -502,7 +507,7 @@ def test_qr_labels_button(admin):
     add_spool(admin, color_name="Есть")
     add_spool(admin, color_name="Пустая", weight_left="0")
     html = admin.get("/").get_data(as_text=True)
-    assert "status=active" in html and "QR-коды" in html
+    assert "status=active" in html and "QR-этикетки" in html
     labels = admin.get("/labels?status=active").get_data(as_text=True)
     assert "Есть" in labels and "Пустая" not in labels
 
@@ -738,7 +743,7 @@ def test_printer_maintenance(admin, anon, db):
         admin.post("/spool/%d/prints" % sid, data={"csrf": "t", "duration": "20:00", "caption": "x"})
     html = admin.get("/printer").get_data(as_text=True)
     assert "60.0 ч" in html and "пора" in html
-    assert "🔧 Принтер: 1" in admin.get("/").get_data(as_text=True)
+    assert 'data-badge="maint">1<' in admin.get("/").get_data(as_text=True)
     table = db.execute("SELECT id FROM maintenance WHERE name LIKE 'Протереть%'").fetchone()[0]
     admin.post("/printer", data={"csrf": "t", "action": "done", "id": table})
     with filament.app.app_context():
@@ -747,7 +752,7 @@ def test_printer_maintenance(admin, anon, db):
     admin.post("/printer", data={"csrf": "t", "action": "add", "name": "PTFE", "every_days": "1"})
     db.execute("UPDATE maintenance SET last_date = '2020-01-01' WHERE name = 'PTFE'")
     db.commit()
-    assert "🔧 Принтер: 1" in admin.get("/").get_data(as_text=True)
+    assert 'data-badge="maint">1<' in admin.get("/").get_data(as_text=True)
     assert admin.post("/printer", data={"csrf": "t", "action": "add", "name": "x"}).status_code == 302
     assert anon.get("/printer").status_code == 200 and "✓ Сделано" not in anon.get("/printer").get_data(as_text=True)
     anon.get("/login")
