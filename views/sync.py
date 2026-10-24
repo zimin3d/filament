@@ -126,8 +126,10 @@ def _run_sync(transport):
     cfg = load_config()
     url, token = (cfg.get("sync_url") or "").rstrip("/") + "/", cfg.get("sync_token") or ""
     if transport is None:
-        if not url.startswith(("http://", "https://")) or not token:
+        if not token or not url.startswith(("http://", "https://")):
             raise ValueError("Не настроено: адрес сервера и ключ.")
+        if not url.startswith("https://"):
+            raise ValueError("Адрес сервера — только https:// (по http ключ ушёл бы открытым текстом).")
         transport = lambda path, data=None, method=None, raw=False: _request(url + path, token, data, method, raw)  # noqa: E731
     db = get_db()
     after = int(sync.state(db, "server_seq", 0))
@@ -210,8 +212,8 @@ def sync_page():
         action = request.form.get("action")
         if PHONE and action == "save":
             url = request.form.get("url", "").strip()
-            if url and not url.startswith(("http://", "https://")):
-                flash("Адрес должен начинаться с https://", "error")
+            if url and not url.startswith("https://"):  # Python ходит в сеть мимо настроек Android — http ушёл бы открытым
+                flash("Адрес должен начинаться с https:// — по http ключ ушёл бы открытым текстом.", "error")
                 return redirect(url_for("sync_page"))
             if url != cfg.get("sync_url"):  # другой сервер — начинаем обмен заново
                 sync.set_state(db, "server_seq", 0)

@@ -1,3 +1,4 @@
+import sys
 import json
 import socket
 
@@ -151,3 +152,25 @@ def test_sync_api_garbage_and_unsafe_values(anon):
     with filament.app.app_context():
         s = filament.get_db().execute("SELECT color_hex, purchase_url FROM spools WHERE uid = ?", ("c" * 32,)).fetchone()
     assert tuple(s) == ("#888888", "")
+
+
+def test_phone_mode_needs_app_session(anon, monkeypatch):
+    import core
+    monkeypatch.setattr(core, "PHONE", True)
+    monkeypatch.setenv("FILAMENT_PHONE_KEY", "k")
+    monkeypatch.setattr(sys.modules["views.sync"], "PHONE", True)
+    for path in ("/", "/help", "/login", "/jobs", "/api/printer/job"):  # другое приложение на телефоне
+        assert anon.get(path).status_code == 403, path
+    assert anon.get("/static/style.css").status_code == 200
+    assert anon.get("/phone-start?key=k").status_code == 302
+    assert anon.get("/help").status_code == 200
+
+
+def test_phone_sync_https_only(monkeypatch):
+    import views.sync as vs
+    cfg = filament.load_config()
+    cfg.update(sync_url="http://server.example/", sync_token="tok")
+    filament.save_config(cfg)
+    with filament.app.test_request_context():
+        with pytest.raises(ValueError, match="https"):
+            vs.run_sync()

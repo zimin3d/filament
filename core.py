@@ -357,11 +357,16 @@ def csrf_token():
 PUBLIC_ENDPOINTS = {"login", "static", "service_worker", "manifest", "offline", "api_printer_job", "showcase",
                     "api_sync", "api_sync_file", "phone_start", "theme",
                     "help_page"}  # у API и запуска на телефоне — своя проверка ключа
+PHONE_PUBLIC_ENDPOINTS = {"phone_start", "static", "service_worker", "manifest", "offline"}
 
 
 @app.before_request
 def check_viewer():
     """Если задан пароль на просмотр — без входа видна только страница входа."""
+    if PHONE:  # 127.0.0.1 открыт всем приложениям телефона — без сессии окна приложения ничего не отдаём
+        if request.endpoint in PHONE_PUBLIC_ENDPOINTS or is_admin():
+            return None
+        abort(403)
     if request.endpoint in PUBLIC_ENDPOINTS or is_admin():
         return None
     viewer_hash = load_config().get("viewer_password_hash")

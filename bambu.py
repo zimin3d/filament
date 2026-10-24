@@ -18,7 +18,7 @@ import zipfile
 MQTT_PORT = 8883
 FTPS_PORT = 990
 TIMEOUT = 8
-MAX_3MF = 200 * 1024 * 1024
+MAX_3MF = 64 * 1024 * 1024  # .3mf целиком в памяти — на телефоне больше не тянем
 STATES = {"IDLE": "ожидает", "PREPARE": "готовится", "RUNNING": "печатает", "PAUSE": "пауза",
           "FINISH": "готово", "FAILED": "ошибка", "SLICING": "нарезка"}
 
@@ -185,23 +185,43 @@ class _ImplicitFTPS(ftplib.FTP_TLS):
         return conn, size
 
 
+class _TooBig(Exception):
+    pass
+
+
+def _connect(host, port, code):
+    ftp = _ImplicitFTPS(context=_tls(), timeout=30)
+    ftp.connect(host, port)
+    ftp.login("bblp", code)
+    ftp.prot_p()
+    return ftp
+
+
 def print_file_weights(host, code, p, parse_slice_info, port=FTPS_PORT):
     """Граммы по филаментам из .3mf, который печатается сейчас. [] — если файл не достать."""
     name = str(p.get("subtask_name") or "")
     gfile = str(p.get("gcode_file") or "")
     candidates = [c for c in (gfile if gfile.endswith(".3mf") else "",
                               "/cache/%s.gcode.3mf" % name if name else "", "/cache/%s.3mf" % name if name else "",
-                              "/%s.gcode.3mf" % name if name else "", "/%s.3mf" % name if name else "") if c]
-    ftp = _ImplicitFTPS(context=_tls(), timeout=30)
+                              "/%s.gcode.3mf" % name if name else "", "/%s.3mf" % name if name else "")
+                  if c and "\r" not in c and "\n" not in c]  # перевод строки в имени — это уже вторая команда FTP
+    ftp = None
     try:
-        ftp.connect(host, port)
-        ftp.login("bblp", code)
-        ftp.prot_p()
+        ftp = _connect(host, port, code)
         for path in candidates:
             buf = io.BytesIO()
+
+            def keep(block):
+                if buf.tell() + len(block) > MAX_3MF:  # не тянуть в память дальше лимита
+                    raise _TooBig
+                buf.write(block)
             try:
-                ftp.retrbinary("RETR " + path, lambda b: buf.write(b) if buf.tell() < MAX_3MF else None)
-            except ftplib.error_perm:
+                ftp.retrbinary("RETR " + path, keep)
+            except ftplib.error_perm:  # такого файла нет
+                continue
+            except _TooBig:
+                ftp.close()  # оборванная передача — соединение дальше не годится
+                ftp = _connect(host, port, code)
                 continue
             try:
                 with zipfile.ZipFile(buf) as z:
@@ -215,7 +235,8 @@ def print_file_weights(host, code, p, parse_slice_info, port=FTPS_PORT):
         pass
     finally:
         try:
-            ftp.close()
+            if ftp is not None:
+                ftp.close()
         except OSError:
             pass
     return []
