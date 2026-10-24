@@ -62,7 +62,8 @@
     — забрать катушки с сайта и дальше синхронизироваться с ним.</p>{% endif %}
   <p><a class="btn{{ '' if phone else ' primary' }}" href="{{ url_for('import_start') }}">⤓ Загрузить из Google Таблицы / Excel</a>
     — по ссылке на таблицу или файлом CSV.{% if phone %} Если данные уже есть на сервере — лучше подключить сервер, иначе катушки задвоятся.{% endif %}</p>
-  <p><a class="btn" href="{{ url_for('spool_new') }}">+ Добавить катушку вручную</a></p>
+  <p><a class="btn" href="{{ url_for('spool_new') }}">+ Добавить катушку вручную</a>
+    <a class="btn" href="{{ url_for('help_page') }}">❓ Справка</a></p>
 </section>
 {% elif not spools %}
   <p class="empty">Ничего не найдено.{% if is_admin %} <a href="{{ url_for('spool_new') }}">Добавить катушку</a>{% endif %}</p>

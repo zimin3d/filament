@@ -519,6 +519,12 @@ def test_pasted_password_cleanup(anon, monkeypatch):
     assert r.status_code == 302 and "/login" not in r.location
 
 
+def test_help_page(anon):
+    html = anon.get("/help").get_data(as_text=True)
+    assert "Play Защита" in html and "Всё равно установить" in html and "releases/latest" in html
+    assert "/help" in anon.get("/").get_data(as_text=True)
+
+
 def test_fill_table(admin, db):
     a = add_spool(admin, number="1", price="")
     b = add_spool(admin, number="2", price="900", purchase_date="2026-01-01")

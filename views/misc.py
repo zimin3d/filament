@@ -80,6 +80,12 @@ def too_large(e):
     return redirect(request.referrer or url_for("index"))
 
 
+@app.route("/help")
+def help_page():
+    from views.sync import RELEASES_URL
+    return render_template("help.html", releases_url=RELEASES_URL)
+
+
 THEMES = {"": "Тема: как в системе", "dark": "Тема: тёмная", "light": "Тема: светлая"}
 
 
