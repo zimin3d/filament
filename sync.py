@@ -113,17 +113,21 @@ def apply(db, changes, newer_after=None, log=True):
             if t not in order or not isinstance(uid, str) or not re.fullmatch(r"[0-9a-f]{32}", uid):
                 skipped += 1
                 continue
+            ts, row = c.get("ts") or 0, c.get("row") or {}
+            if not isinstance(ts, (int, float)) or not isinstance(row, dict):
+                skipped += 1
+                continue
             if newer_after is not None:
                 mine = db.execute("SELECT ts FROM sync_log WHERE tbl = ? AND uid = ? AND seq > ?",
                                   (t, uid, newer_after)).fetchone()
-                if mine and mine[0] > float(c.get("ts") or 0):
+                if mine and mine[0] > ts:
                     skipped += 1
                     continue
             if c.get("del"):
                 db.execute("DELETE FROM %s WHERE uid = ?" % t, (uid,))
                 done += 1
                 continue
-            row = _local_row(db, t, c.get("row") or {})
+            row = _local_row(db, t, row)
             if row is None:  # ссылается на то, чего здесь нет (удалено)
                 skipped += 1
                 continue
@@ -148,6 +152,11 @@ def apply(db, changes, newer_after=None, log=True):
 def _local_row(db, t, row):
     cols = set(_columns(db, t))
     out = {k: v for k, v in row.items() if k in cols and isinstance(v, (str, int, float, type(None)))}
+    # попадают в style= и href= — те же проверки, что у формы
+    if "color_hex" in out and not re.fullmatch(r"#[0-9a-fA-F]{6}", str(out["color_hex"])):
+        del out["color_hex"]
+    if out.get("purchase_url") and not str(out["purchase_url"]).startswith(("http://", "https://")):
+        out["purchase_url"] = ""
     for col, parent in FKS.get(t, {}).items():
         if out.get(col) is not None:
             ref = db.execute("SELECT id FROM %s WHERE uid = ?" % parent, (str(out[col]),)).fetchone()

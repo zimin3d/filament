@@ -314,6 +314,8 @@ def xlsx_read(raw):
     if not rows:
         raise SheetError("Лист пустой.")
     width = max(max(r) for r in rows.values() if r) + 1
+    if width * max(rows) > XLSX_MAX_CELLS * 10:  # одна ячейка в XFD1048576 — миллиарды пустых клеток
+        raise SheetError("Таблица слишком большая.")
     out = io.StringIO()
     w = csv.writer(out)
     for line in range(1, max(rows) + 1):  # пустые строки сохраняем — номера строк совпадают с фото

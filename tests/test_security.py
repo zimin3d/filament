@@ -57,7 +57,8 @@ def test_forged_session_without_password_mark(anon):
 
 
 @pytest.mark.parametrize("nxt,expected", [("/spool/1", "/spool/1"), ("//evil.com", "/"), ("/\\\\evil.com", "/"),
-                                          ("/javascript:alert(1)", "/")])
+                                          ("/javascript:alert(1)", "/"), ("/\t/evil.com", "/"),
+                                          ("/\n/evil.com", "/")])
 def test_login_redirect_safe(anon, nxt, expected):
     anon.get("/login")
     with anon.session_transaction() as s:
@@ -112,3 +113,41 @@ def test_csp_no_inline_scripts(admin, anon):
             assert not re.search(r"<script(?![^>]*\ssrc=)[^>]*>", html), p
             assert not re.search(r"\son[a-z]+\s*=", html), p
             assert "javascript:" not in html, p
+
+
+def test_theme_redirect_tab_bypass(anon):
+    # браузер выкидывает табуляцию: «/\t/evil.com» → «//evil.com»
+    for nxt in ("/\t/evil.com", "/\r\n/evil.com", "/ /evil.com"):
+        assert "evil" not in anon.get("/theme", query_string={"next": nxt}).location
+
+
+def test_xlsx_huge_cell_ref():
+    import io
+    import zipfile
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, "w") as z:
+        z.writestr("xl/workbook.xml", '<workbook><sheets><sheet name="1" r:id="rId1"/></sheets></workbook>')
+        z.writestr("xl/_rels/workbook.xml.rels",
+                   '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>')
+        z.writestr("xl/worksheets/sheet1.xml", '<worksheet><sheetData><row><c r="XFD1048576" t="inlineStr">'
+                   '<is><t>x</t></is></c></row></sheetData></worksheet>')
+    with pytest.raises(importer.SheetError):
+        importer.xlsx_read(b.getvalue())
+
+
+def test_sync_api_garbage_and_unsafe_values(anon):
+    cfg = filament.load_config()
+    cfg["sync_token"] = "tok"
+    filament.save_config(cfg)
+    h = {"Authorization": "Bearer tok"}
+    bad = [{"t": "spools", "u": "a" * 32, "ts": "x", "row": {}}, {"t": "spools", "u": "b" * 32, "row": [1]}]
+    r = anon.post("/api/sync", json={"after": 0, "changes": bad}, headers=h)
+    assert r.status_code == 200 and r.get_json()["skipped"] == 2
+    row = {"manufacturer": "M", "material": "PLA", "color_hex": 'red;background:url(//evil)"',
+           "purchase_url": "javascript:alert(1)"}
+    r = anon.post("/api/sync", json={"after": 0, "changes": [{"t": "spools", "u": "c" * 32, "ts": 1, "row": row}]},
+                  headers=h)
+    assert r.get_json()["applied"] == 1
+    with filament.app.app_context():
+        s = filament.get_db().execute("SELECT color_hex, purchase_url FROM spools WHERE uid = ?", ("c" * 32,)).fetchone()
+    assert tuple(s) == ("#888888", "")

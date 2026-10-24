@@ -330,7 +330,7 @@ def poll_printer():
         r = accept_printer_job(payload)
         if r.get("ok") and not r.get("duplicate"):
             auto, pending = auto + bool(r.get("auto")), pending + (not r.get("auto"))
-    cfg = load_config()
+    cfg = load_config(fresh=True)
     cfg["printer_checked"] = time.strftime("%Y-%m-%d %H:%M")
     save_config(cfg)
     return auto, pending
@@ -339,6 +339,7 @@ def poll_printer():
 def poll_bambu(cfg):
     """Bambu: истории нет — следим за печатью сами. Началась — запоминаем граммы из файла .3mf и
     остатки AMS; закончилась (FINISH/FAILED) — записываем, как печать от агента."""
+    host = cfg.get("printer_host")
     p = bambu_report(cfg)
     state, key = str(p.get("gcode_state") or ""), bambu.job_key(p)
     job = cfg.get("bambu_job") or {}
@@ -365,7 +366,9 @@ def poll_bambu(cfg):
             if r.get("ok") and not r.get("duplicate"):
                 auto, pending = auto + bool(r.get("auto")), pending + (not r.get("auto"))
         job["done"] = True
-    cfg = load_config()
+    cfg = load_config(fresh=True)
+    if cfg.get("printer_host") != host:  # пока ждали принтер, его сменили — эта печать не его
+        return auto, pending
     cfg["bambu_job"] = job
     cfg["printer_checked"] = time.strftime("%Y-%m-%d %H:%M")
     save_config(cfg)

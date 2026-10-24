@@ -143,7 +143,8 @@ class MainActivity : ComponentActivity() {
 
     /** CSV, этикетки и т.п.: скачиваем со своего сервера (с cookie входа) в «Загрузки». */
     private fun download(url: String, disposition: String?, mime: String?) {
-        if (!url.startsWith("http://127.0.0.1")) return
+        // по хосту, не по началу строки: «http://127.0.0.1.evil.com» начинается так же
+        if (Uri.parse(url).let { it.scheme != "http" || it.host != "127.0.0.1" }) return
         val name = URLUtil.guessFileName(url, disposition, mime)
         val cookie = CookieManager.getInstance().getCookie(url)
         thread {

@@ -191,8 +191,9 @@ DEFAULT_PROFILES = [
 
 # --- конфигурация -----------------------------------------------------------
 
-def load_config():
-    if has_request_context() and "_cfg" in g:
+def load_config(fresh=False):
+    """fresh=True — заново с диска: после долгой сети, чтобы не затереть то, что сохранил другой запрос."""
+    if has_request_context() and "_cfg" in g and not fresh:
         return copy.deepcopy(g._cfg)
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     cfg = {}
@@ -338,6 +339,13 @@ def admin_required(view):
             return redirect(url_for("login", next=request.path))
         return view(*args, **kwargs)
     return wrapped
+
+
+def safe_next(url):
+    """Адрес «вернуться на» — только путь этого сайта. Браузер выкидывает из адреса табуляции и переводы
+    строк («/\\t/evil.com» → «//evil.com»), поэтому любые управляющие символы и пробелы — отказ."""
+    return bool(url) and url.startswith("/") and not url.startswith("//") and "\\" not in url \
+        and ":" not in url.split("?")[0] and not any(ord(ch) <= 0x20 or ord(ch) == 0x7F for ch in url)
 
 
 def csrf_token():

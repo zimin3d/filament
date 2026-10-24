@@ -60,8 +60,7 @@ def login():
             session["pwv"] = version
             session.permanent = True
             nxt = request.args.get("next", "")
-            safe = nxt.startswith("/") and not nxt.startswith("//") and "\\" not in nxt and ":" not in nxt.split("?")[0]
-            return redirect(request.script_root + nxt if safe else url_for("index"))
+            return redirect(request.script_root + nxt if safe_next(nxt) else url_for("index"))
         login_failed(ip)
         flash("Неверное имя или пароль." if len(users) > 1 else "Неверный пароль." if users
               else "Пароль администратора ещё не задан.", "error")
@@ -96,7 +95,7 @@ def theme():
     cur = request.cookies.get("theme", "")
     nxt = order[(order.index(cur) + 1) % len(order)] if cur in order else "dark"
     back = request.args.get("next", "")
-    if not back.startswith("/") or back.startswith("//") or "\\" in back:
+    if not safe_next(back):
         back = url_for("index")
     resp = redirect(back)
     resp.set_cookie("theme", nxt, max_age=365 * 86400, samesite="Lax", httponly=True)

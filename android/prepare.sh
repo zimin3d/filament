@@ -14,11 +14,19 @@ find "$PY" -name __pycache__ -prune -exec rm -rf {} +
 mkdir -p "$RES/mipmap-xxxhdpi"
 cp "$ROOT/static/icon-192.png" "$RES/mipmap-xxxhdpi/ic_launcher.png"
 # проверка: приложение запускается из того, что попадёт в APK (как на телефоне)
+# (launcher — точка входа MainActivity; agent_module грузится лениво — проверяем, что файл на месте)
 if [ "${SKIP_CHECK:-}" != 1 ]; then
+    PYTHON="${PYTHON:-$([ -x "$ROOT/venv/bin/python" ] && echo "$ROOT/venv/bin/python" || echo python3)}"
     CHECK="$(mktemp -d)"
-    (cd "$CHECK" && FILAMENT_DATA="$CHECK/data" FILAMENT_MODE=phone PYTHONDONTWRITEBYTECODE=1 \
-        "${PYTHON:-python3}" -c "import sys; sys.path.insert(0, '$PY'); import app; c = app.app.test_client(); assert c.get('/help').status_code == 200") \
-        || { echo "!!! приложение не запускается из android/app/src/main/python"; rm -rf "$CHECK"; exit 1; }
-    rm -rf "$CHECK"
+    trap 'rm -rf "$CHECK"' EXIT
+    (cd "$CHECK" && APP_PY="$PY" FILAMENT_DATA="$CHECK/data" FILAMENT_MODE=phone PYTHONDONTWRITEBYTECODE=1 \
+        "$PYTHON" -c "
+import os, sys
+sys.path.insert(0, os.environ['APP_PY'])
+import app, launcher
+app.agent_module()
+if app.app.test_client().get('/help').status_code != 200:
+    sys.exit('/help не открывается')") \
+        || { echo "!!! приложение не запускается из android/app/src/main/python ($PYTHON)"; exit 1; }
 fi
 echo "готово: $PY"
