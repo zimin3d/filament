@@ -1,18 +1,14 @@
 package io.github.zimin3d.filament
 
 import android.Manifest
-import android.app.AlertDialog
-import android.app.PendingIntent
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Intent
-import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
-import android.provider.Settings
 import android.webkit.CookieManager
 import android.webkit.PermissionRequest
 import android.webkit.URLUtil
@@ -21,9 +17,6 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -34,7 +27,6 @@ import com.chaquo.python.android.AndroidPlatform
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /** Окно приложения: внутри работает тот же Flask, что и на сервере (launcher.py), а здесь — WebView к нему. */
@@ -43,7 +35,6 @@ class MainActivity : ComponentActivity() {
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private var cameraUri: Uri? = null
     private var pendingPermission: PermissionRequest? = null
-    @Volatile private var updating = false
 
     private val pickFiles = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
         var uris = WebChromeClient.FileChooserParams.parseResult(res.resultCode, res.data)
@@ -71,7 +62,7 @@ class MainActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 if (request.url.host == "127.0.0.1") {
                     if (request.url.path?.endsWith("/app-update/install") == true) {
-                        request.url.getQueryParameter("url")?.let { installUpdate(it) }
+                        request.url.getQueryParameter("url")?.let { openUpdate(it) }
                         return true
                     }
                     return false
@@ -138,108 +129,15 @@ class MainActivity : ComponentActivity() {
         return Intent.createChooser(pick, "Фото").putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(camera))
     }
 
-    /** Обновление: APK из выпуска на GitHub → системный установщик (тот же ключ подписи — данные сохраняются). */
-    private fun installUpdate(url: String) {
+    /** Обновление: APK из выпуска на GitHub скачивает и ставит браузер. Сами APK не ставим:
+     *  право устанавливать приложения + скачивание APK Play Защита считает признаком вредоноса. */
+    private fun openUpdate(url: String) {
         if (!url.startsWith("https://github.com/zimin3d/filament/releases/download/") || !url.endsWith(".apk")) return
-        if (!packageManager.canRequestPackageInstalls()) {
-            Toast.makeText(this, "Разрешите установку из этого приложения и нажмите кнопку ещё раз", Toast.LENGTH_LONG).show()
-            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
-            return
-        }
-        if (updating) return
-        updating = true
-        // окно с полосой: сколько скачано из скольких, кнопка «Отмена»
-        val bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; isIndeterminate = true }
-        val label = TextView(this).apply { text = "Подключение…"; setPadding(0, 16, 0, 0) }
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(56, 32, 56, 8)
-            addView(bar)
-            addView(label)
-        }
-        val cancelled = AtomicBoolean(false)
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Скачивание обновления")
-            .setView(box)
-            .setCancelable(false)
-            .setNegativeButton("Отмена") { _, _ -> cancelled.set(true) }
-            .show()
-        thread {
-            val apk = File(File(cacheDir, "updates").apply { mkdirs() }, "filament.apk")
-            val error: String? = try {
-                val conn = URL(url).openConnection() as HttpURLConnection
-                conn.instanceFollowRedirects = true
-                conn.connectTimeout = 20000
-                conn.readTimeout = 60000
-                if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
-                val total = conn.contentLengthLong
-                var done = 0L
-                var shown = -1
-                conn.inputStream.use { input ->
-                    apk.outputStream().use { out ->
-                        val buf = ByteArray(64 * 1024)
-                        while (true) {
-                            if (cancelled.get()) throw InterruptedException()
-                            val n = input.read(buf)
-                            if (n < 0) break
-                            out.write(buf, 0, n)
-                            done += n
-                            val pct = if (total > 0) (done * 100 / total).toInt() else -1
-                            if (pct != shown) {
-                                shown = pct
-                                val mb = "%.1f".format(done / 1048576.0) +
-                                    (if (total > 0) " из " + "%.1f".format(total / 1048576.0) else "") + " МБ"
-                                runOnUiThread {
-                                    if (pct >= 0) { bar.isIndeterminate = false; bar.progress = pct }
-                                    label.text = if (pct >= 0) "$pct% · $mb" else mb
-                                }
-                            }
-                        }
-                    }
-                }
-                if (total > 0 && done != total) throw IllegalStateException("файл скачан не полностью")
-                null
-            } catch (e: InterruptedException) {
-                "отменено"
-            } catch (e: Exception) {
-                e.message ?: e.javaClass.simpleName
-            }
-            runOnUiThread {
-                updating = false
-                if (dialog.isShowing) dialog.dismiss()
-                if (error != null) {
-                    apk.delete()
-                    if (!cancelled.get()) Toast.makeText(this, "Не удалось скачать обновление: $error", Toast.LENGTH_LONG).show()
-                } else {
-                    startInstall(apk)
-                }
-            }
-        }
-    }
-
-    /** Установка через PackageInstaller: система сама спросит подтверждение, а результат
-     *  (в т.ч. текст ошибки — другая подпись, нет места) придёт в InstallResultReceiver. */
-    private fun startInstall(apk: File) {
         try {
-            val installer = packageManager.packageInstaller
-            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-            params.setAppPackageName(packageName)
-            val id = installer.createSession(params)
-            installer.openSession(id).use { session ->
-                apk.inputStream().use { input ->
-                    session.openWrite("filament.apk", 0, apk.length()).use { out ->
-                        input.copyTo(out)
-                        session.fsync(out)
-                    }
-                }
-                val result = Intent(this, InstallResultReceiver::class.java)
-                val pi = PendingIntent.getBroadcast(this, id, result,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
-                session.commit(pi.intentSender)
-            }
-            Toast.makeText(this, "Устанавливаю обновление…", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Не удалось начать установку: ${e.message}", Toast.LENGTH_LONG).show()
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            Toast.makeText(this, "Скачивание в браузере — затем откройте файл", Toast.LENGTH_LONG).show()
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, "Нет браузера для скачивания", Toast.LENGTH_LONG).show()
         }
     }
 

@@ -6,9 +6,8 @@
 <h2>Приложение</h2>
 {% if update %}
 <div class="flash ok">Доступна версия <b>{{ update.version }}</b> (установлена {{ update.current or '?' }}).
-  <a class="btn primary" href="{{ url_for('app_update_install', url=update.apk) }}">⤓ Скачать и установить</a>
-  <div class="small muted">Android попросит подтвердить установку; данные сохранятся.
-    Не получается — <a href="{{ update.apk }}">скачать в браузере</a> и открыть файл.</div></div>
+  <a class="btn primary" href="{{ url_for('app_update_install', url=update.apk) }}">⤓ Скачать обновление</a>
+  <div class="small muted">Файл скачается в браузере — откройте его и установите поверх; данные сохранятся.</div></div>
 {% endif %}
 <form method="post" class="inline">
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
