@@ -8,6 +8,7 @@ from datetime import date
 
 from flask import abort, flash, jsonify, redirect, render_template, request, url_for
 
+import bambu
 import slicer
 from core import *  # noqa: F401,F403
 from logic import *  # noqa: F401,F403
@@ -278,8 +279,25 @@ def moonraker(path, cfg=None):
         return json.loads(r.read(2_000_000)).get("result") or {}
 
 
+def is_bambu(cfg):
+    return cfg.get("printer_kind") == "bambu"
+
+
+def bambu_report(cfg):
+    if not (cfg.get("printer_host") and cfg.get("bambu_serial") and cfg.get("bambu_code")):
+        raise ValueError("Нужны IP, серийный номер и код доступа.")
+    try:
+        return bambu.report(cfg["printer_host"], cfg["bambu_serial"], cfg["bambu_code"],
+                            port=int(cfg.get("bambu_mqtt_port") or bambu.MQTT_PORT), tls=not cfg.get("bambu_plain"))
+    except bambu.BambuError as e:
+        raise ValueError(str(e))
+
+
 def printer_live():
     """Состояние принтера сейчас: печать, прогресс, температуры. Исключение — если не отвечает."""
+    cfg = load_config()
+    if is_bambu(cfg):
+        return bambu.live(bambu_report(cfg))
     st = moonraker("/printer/objects/query?print_stats&display_status&extruder&heater_bed").get("status") or {}
     ps, ex, bed = st.get("print_stats") or {}, st.get("extruder") or {}, st.get("heater_bed") or {}
     progress = (st.get("display_status") or {}).get("progress")
@@ -295,6 +313,8 @@ def poll_printer():
     """Новые законченные печати из истории принтера → учёт (как от агента). Печати, закончившиеся
     до подключения принтера, не трогаем. Возвращает (списано, во входящих)."""
     cfg = load_config()
+    if is_bambu(cfg):
+        return poll_bambu(cfg)
     since = float(cfg.get("printer_since") or 0)
     agent = agent_module()
     jobs_ = moonraker("/server/history/list?limit=50&order=desc", cfg).get("jobs") or []
@@ -316,6 +336,42 @@ def poll_printer():
     return auto, pending
 
 
+def poll_bambu(cfg):
+    """Bambu: истории нет — следим за печатью сами. Началась — запоминаем граммы из файла .3mf и
+    остатки AMS; закончилась (FINISH/FAILED) — записываем, как печать от агента."""
+    p = bambu_report(cfg)
+    state, key = str(p.get("gcode_state") or ""), bambu.job_key(p)
+    job = cfg.get("bambu_job") or {}
+    auto = pending = 0
+    if state in ("PREPARE", "RUNNING", "PAUSE") and job.get("key") != key:
+        weights = bambu.print_file_weights(cfg["printer_host"], cfg["bambu_code"], p, slicer.parse_slice_info,
+                                           port=int(cfg.get("bambu_ftp_port") or bambu.FTPS_PORT))
+        job = {"key": key, "name": p.get("subtask_name") or os.path.basename(str(p.get("gcode_file") or "")),
+               "started": time.time(), "weights": weights, "ams": bambu.ams_remains(p), "done": False}
+    elif state in ("FINISH", "FAILED") and job.get("key") == key and not job.get("done"):
+        weights = list(job.get("weights") or [])
+        if weights and state == "FAILED" and isinstance(p.get("mc_percent"), int):
+            weights = [w * p["mc_percent"] / 100 for w in weights]  # прервалась — пропорционально сделанному
+        if not weights:  # файла не было — по убыли остатка в AMS
+            now = bambu.ams_remains(p)
+            weights = [(was[0] - now[slot][0]) / 100 * was[1] for slot, was in (job.get("ams") or {}).items()
+                       if slot in now and was[0] > now[slot][0]]
+        weights = [round(w, 1) for w in weights if w > 0]
+        if weights:
+            r = accept_printer_job({"job_id": ("bambu-" + key)[:64], "name": job.get("name") or "печать",
+                                    "status": "completed" if state == "FINISH" else "error",
+                                    "minutes": max(1, round((time.time() - float(job.get("started") or time.time())) / 60)),
+                                    "day": date.today().isoformat(), "weights": weights})
+            if r.get("ok") and not r.get("duplicate"):
+                auto, pending = auto + bool(r.get("auto")), pending + (not r.get("auto"))
+        job["done"] = True
+    cfg = load_config()
+    cfg["bambu_job"] = job
+    cfg["printer_checked"] = time.strftime("%Y-%m-%d %H:%M")
+    save_config(cfg)
+    return auto, pending
+
+
 @app.route("/printer/link", methods=["GET", "POST"])
 @admin_required
 def printer_link():
@@ -323,14 +379,24 @@ def printer_link():
     if request.method == "POST":
         action = request.form.get("action")
         if action == "save":
+            kind = "bambu" if request.form.get("kind") == "bambu" else "klipper"
             host = request.form.get("host", "").strip()
             port = request.form.get("port", "").strip() or "7125"
+            serial = request.form.get("serial", "").strip().upper()
+            code = request.form.get("code", "").strip()
             if host and not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", host) or not port.isdigit() or not 0 < int(port) < 65536:
                 flash("Адрес — IP или имя (например 192.168.1.50), порт — число.", "error")
                 return redirect(url_for("printer_link"))
-            if host != cfg.get("printer_host"):  # новый принтер: старую историю не списываем
-                cfg["printer_since"] = time.time()
-            cfg.update(printer_host=host, printer_port=int(port))
+            if kind == "bambu" and host and (not re.fullmatch(r"[0-9A-Z]{8,20}", serial)
+                                             or not (code or cfg.get("bambu_code"))):
+                flash("Для Bambu Lab нужны серийный номер (на наклейке или в Настройках принтера) и код доступа LAN.", "error")
+                return redirect(url_for("printer_link"))
+            if host != cfg.get("printer_host") or kind != cfg.get("printer_kind", "klipper"):
+                cfg["printer_since"] = time.time()  # новый принтер: старую историю не списываем
+                cfg.pop("bambu_job", None)
+            cfg.update(printer_kind=kind, printer_host=host, printer_port=int(port), bambu_serial=serial)
+            if code:
+                cfg["bambu_code"] = code
             save_config(cfg)
             flash("Сохранено." if host else "Связь с принтером отключена.", "ok")
         elif action == "poll":

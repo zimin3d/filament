@@ -2,7 +2,7 @@
 {% block title %}Связь с принтером{% endblock %}
 {% block content %}
 <h1>🖨 Связь с принтером</h1>
-<p class="small muted">Creality K2 и другие принтеры на Klipper (Moonraker). Работает в локальной сети:
+<p class="small muted">Creality K2 и другие принтеры на Klipper (Moonraker), Bambu Lab (X1, P1, A1 — по коду доступа LAN). Работает в локальной сети:
   {% if phone %}телефон должен быть в той же Wi‑Fi, что и принтер{% else %}сервер должен видеть принтер в своей сети — иначе используйте приложение на телефоне или агента K2{% endif %}.
   Законченные печати забираются из истории принтера: один пластик и выбрана катушка «на принтере» — списывается сразу, иначе — во «Входящие».</p>
 
@@ -13,10 +13,21 @@
   {% if live.progress is not none and live.raw_state in ('printing', 'paused') %}<div><span class="num">{{ live.progress }}%</span><span class="lbl">{{ live.minutes }} мин печати</span></div>{% endif %}
   <div><span class="num">{{ live.nozzle|round|int if live.nozzle is not none else '—' }}°</span><span class="lbl">сопло{% if live.nozzle_target %} → {{ live.nozzle_target|round|int }}°{% endif %}</span></div>
   <div><span class="num">{{ live.bed|round|int if live.bed is not none else '—' }}°</span><span class="lbl">стол{% if live.bed_target %} → {{ live.bed_target|round|int }}°{% endif %}</span></div>
+  {% if live.remaining and live.raw_state in ('printing', 'paused') %}<div><span class="num">{{ live.remaining }} мин</span><span class="lbl">осталось</span></div>{% endif %}
   {% else %}
   <div><span class="num">нет связи</span><span class="lbl">{{ error }}</span></div>
   {% endif %}
 </section>
+{% if live and live.trays %}
+<h2>AMS</h2>
+<div class="table-wrap"><table class="tbl">
+  <thead><tr><th>Ячейка</th><th>Пластик</th><th>Остаток</th></tr></thead>
+  <tbody>{% for t in live.trays %}
+    <tr><td>{{ t.slot }}</td><td>{% if t.color %}<span class="swatch" style="background: {{ t.color }}"></span> {% endif %}{{ t.type }}</td>
+      <td>{{ '%d%%'|format(t.remain) if t.remain is not none else '—' }}</td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% endif %}
 <p>На принтере: {% if spool %}<a href="{{ url_for('spool_detail', spool_id=spool.id) }}">№{{ spool.number }} {{ spool.material }} {{ spool.color_name }}</a>
   {% else %}<span class="muted">не выбрана — однокрасочные печати пойдут во «Входящие» (выбрать: «🖨 Поставил на принтер» на странице катушки)</span>{% endif %}</p>
 <form method="post" class="inline">
@@ -30,10 +41,19 @@
 <h2>Принтер</h2>
 <form method="post" class="weigh">
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-  <label>Адрес (IP){{ '' }}<input name="host" value="{{ cfg.printer_host or '' }}" placeholder="192.168.1.50" inputmode="decimal" autocomplete="off"></label>
-  <label>Порт<input name="port" value="{{ cfg.printer_port or 7125 }}" inputmode="numeric"></label>
+  {% set bambu = cfg.printer_kind == 'bambu' %}
+  <label>Принтер<select name="kind">
+    <option value="klipper"{% if not bambu %} selected{% endif %}>Creality K2 / Klipper (Moonraker)</option>
+    <option value="bambu"{% if bambu %} selected{% endif %}>Bambu Lab</option>
+  </select></label>
+  <label>Адрес (IP)<input name="host" value="{{ cfg.printer_host or '' }}" placeholder="192.168.1.50" inputmode="decimal" autocomplete="off"></label>
+  <label>Порт Moonraker (Klipper)<input name="port" value="{{ cfg.printer_port or 7125 }}" inputmode="numeric"></label>
+  <label>Серийный номер (Bambu)<input name="serial" value="{{ cfg.bambu_serial or '' }}" autocomplete="off" autocapitalize="characters"></label>
+  <label>Код доступа LAN (Bambu){% if cfg.bambu_code %} — сохранён{% endif %}<input name="code" type="password" autocomplete="off" placeholder="{{ 'оставьте пустым, чтобы не менять' if cfg.bambu_code else '8 символов с экрана принтера' }}"></label>
   <button class="btn" name="action" value="save">Сохранить</button>
 </form>
 <p class="small muted">IP принтера — в его меню (Настройки → Сеть) или в роутере. Порт Moonraker у K2 — 7125.
+  Bambu Lab: код доступа и IP — на экране принтера (Настройки → WLAN / Сеть), серийный номер — там же или на наклейке.
+  Граммы берутся из файла печати на принтере, иначе — по убыли остатка катушек Bambu в AMS; печать, начатая до открытия приложения, может не учесться.
   Печати, закончившиеся до подключения, не списываются (их можно загрузить в «Обслуживание принтера» → история).</p>
 {% endblock %}
