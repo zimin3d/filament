@@ -29,7 +29,7 @@
       <datalist id="mats">{% for m in materials %}<option value="{{ m }}">{% endfor %}</datalist>
     </label>
     <label>Цвет<input name="color_name" value="{{ s.color_name or '' }}" placeholder="напр. Чёрный матовый"></label>
-    <label>Образец цвета<input type="color" name="color_hex" value="{{ s.color_hex or '#888888' }}"></label>
+    <label class="color-pick">Образец цвета<input type="color" name="color_hex" value="{{ s.color_hex or '#888888' }}"></label>
     <label>Диаметр, мм<input name="diameter" value="{{ s.diameter|field_num(1.75) }}" inputmode="decimal"></label>
   </fieldset>
   <fieldset>
@@ -56,9 +56,9 @@
     <label>{{ 'Заменить фото' if s.photo else 'Фото' }}<input type="file" name="photo" accept="image/*"></label>
     <label class="wide">Заметки<textarea name="notes" rows="3" placeholder="Температура, настройки, впечатления…">{{ s.notes or '' }}</textarea></label>
   </fieldset>
-  <div class="actions">
+  <div class="form-bar">
     <button class="btn primary">Сохранить</button>
-    <a class="btn" href="{{ url_for('spool_detail', spool_id=s.id) if not new else list_url() }}">Отмена</a>
+    <a class="btn ghost" href="{{ url_for('spool_detail', spool_id=s.id) if not new else list_url() }}">Отмена</a>
   </div>
 </form>
 {% endblock %}

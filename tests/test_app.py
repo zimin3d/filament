@@ -832,3 +832,11 @@ def test_cfs_plan(admin, anon, db):
     assert got["2"] == "3"  # белый PETG с остатком (№5 — мало, №4 — PLA)
     assert got["3"] == "2" and "НЕ ЛЕЗЕТ" in html  # второй красной осталась только «не лезет» — с пометкой, строка красная
     assert anon.get("/cfs").status_code == 200 and 'class="slice-file"' in anon.get("/cfs").get_data(as_text=True)
+
+
+def test_detail_panels_open_after_error(admin):
+    sid = add_spool(admin, weight_left="100")
+    assert '<details class="panel" open>' not in admin.get("/spool/%d" % sid).get_data(as_text=True).split("Списать")[0]
+    r = admin.post("/spool/%d/use" % sid, data={"csrf": "t", "grams": "500"}, follow_redirects=True)
+    html = r.get_data(as_text=True)
+    assert "всё равно записать" in html and '<details class="panel" open>\n      <summary>…или списать' in html

@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Хватит ли на печать?{% endblock %}
 {% block content %}
+{% import "_nav.html" as nav with context %}
 <h1>Хватит ли на печать?</h1>
-<form class="weigh" method="get" style="margin-top: 0">
+<form class="weigh query" method="get">
   <input type="hidden" name="csrf" value="{{ csrf_token() }}" form="none">
-  <label>Нужно, г<input name="grams" value="{{ grams|field_num if grams else '' }}" inputmode="decimal" required class="big-input"></label>
+  <label class="grow">Нужно, г<input name="grams" value="{{ grams|field_num if grams else '' }}" inputmode="decimal" required class="big-input" enterkeyhint="search"></label>
   <label>Материал<select name="material">
     <option value="">любой</option>
     {% for m in materials %}<option {% if m == material %}selected{% endif %}>{{ m }}</option>{% endfor %}
@@ -20,25 +21,25 @@
 <h2>Хватит ({{ fit|length }})</h2>
 <p class="small muted">Остаток ≥ {{ grams|grams }} + {{ reserve }}% запаса. Сначала вскрытые, затем с меньшим остатком — чтобы доедать начатые катушки.</p>
 {% if not fit %}<p class="empty">Ни одной подходящей катушки.</p>{% else %}
-<div class="table-wrap"><table class="tbl">
-  <thead><tr><th>№</th><th>Катушка</th><th>Остаток</th><th>Останется</th><th></th></tr></thead>
+<div class="table-wrap"><table class="tbl stack numfirst">
+  <thead><tr><th>№</th><th>Катушка</th><th class="n">Остаток</th><th class="n">Останется</th><th></th></tr></thead>
   <tbody>{% for s in fit %}
     <tr><td>{{ s.number }}</td>
-      <td><a href="{{ url_for('spool_detail', spool_id=s.id) }}"><span class="swatch" style="background: {{ s.swatch }}"></span> {{ s.material }} {{ s.color_name }}</a>
-        <span class="muted">· {{ s.manufacturer }}{% if s.location %} · 📍 {{ s.location }}{% endif %}</span>
+      <td class="primary"><a href="{{ url_for('spool_detail', spool_id=s.id) }}"><span class="swatch" style="background: {{ s.swatch }}"></span> {{ s.material }} {{ s.color_name }}</a>
+        <span class="muted small">· {{ s.manufacturer }}{% if s.location %} · {{ nav.icon('pin', 'ic xs') }} {{ s.location }}{% endif %}</span>
         {% if s.alert %}<div class="alert-line">⚠ {{ s.alert }}</div>{% endif %}</td>
-      <td class="nowrap">{{ s.weight_left|grams }}<div class="small muted">{{ s.meters_left|meters }}</div></td><td class="nowrap">{{ s.after|grams }}</td>
-      <td><span class="pill status-{{ s.status }}">{{ s.status_label }}</span></td></tr>
+      <td class="n" data-label="остаток">{{ s.weight_left|grams }}<div class="small muted">{{ s.meters_left|meters }}</div></td><td class="n" data-label="останется">{{ s.after|grams }}</td>
+      <td class="end"><span class="pill status-{{ s.status }}">{{ s.status_label }}</span></td></tr>
   {% endfor %}</tbody>
 </table></div>
 {% endif %}
 {% if close %}
 <h2>Впритык или не хватит</h2>
-<div class="table-wrap"><table class="tbl">
+<div class="table-wrap"><table class="tbl stack numfirst">
   <tbody>{% for s in close %}
     <tr class="row-dup"><td>{{ s.number }}</td>
-      <td><a href="{{ url_for('spool_detail', spool_id=s.id) }}"><span class="swatch" style="background: {{ s.swatch }}"></span> {{ s.material }} {{ s.color_name }}</a> <span class="muted">· {{ s.manufacturer }}</span></td>
-      <td class="nowrap">{{ s.weight_left|grams }}</td><td class="nowrap">{{ 'не хватит ' ~ (-s.after)|grams if s.after < 0 else 'запас ' ~ s.after|grams }}</td></tr>
+      <td class="primary"><a href="{{ url_for('spool_detail', spool_id=s.id) }}"><span class="swatch" style="background: {{ s.swatch }}"></span> {{ s.material }} {{ s.color_name }}</a> <span class="muted small">· {{ s.manufacturer }}</span></td>
+      <td class="n">{{ s.weight_left|grams }}</td><td class="n {{ 'err' if s.after < 0 else 'warn' }}">{{ 'не хватит ' ~ (-s.after)|grams if s.after < 0 else 'запас ' ~ s.after|grams }}</td></tr>
   {% endfor %}</tbody>
 </table></div>
 {% endif %}

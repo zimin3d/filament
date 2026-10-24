@@ -423,8 +423,13 @@ a.banner { color: var(--text); }
 @media (max-width: 899px) { .bulk-bar { position: fixed; top: auto; left: 8px; right: 8px; bottom: calc(var(--h-tabbar) + 8px + env(safe-area-inset-bottom, 0px)); margin: 0; } }
 
 /* --- страница катушки ---------------------------------------------------------------- */
-.detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 24px; background: var(--surface);
-          border: 1px solid var(--border); border-radius: var(--r-lg); padding: 18px; }
+.detail { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 28px; align-items: start; }
+.detail .col-a { min-width: 0; }
+.detail .col-a h1 { margin: 14px 0 4px; }
+.detail .col-b > h2:first-child, .detail .col-b > .quick:first-child { margin-top: 0; }
+.kv { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 16px; margin: 0 0 12px; }
+.kv dt { font-size: .875rem; }
+.danger-zone { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .detail .photo img { width: 100%; border-radius: var(--r-md); display: block; }
 .nophoto, .hero-art { position: relative; aspect-ratio: 1; border-radius: var(--r-md); background: var(--thumb-bg); color: var(--text-3);
                       display: grid; place-items: center; overflow: hidden; }
@@ -447,7 +452,9 @@ dt { color: var(--text-2); } dd { margin: 0; overflow-wrap: anywhere; }
 .panel > .weigh { margin: 0; border: 0; border-top: 1px solid var(--border); border-radius: 0 0 var(--r-lg) var(--r-lg); background: transparent; }
 .quick { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 @media (max-width: 899px) {
-  .detail { grid-template-columns: 1fr; padding: 12px; gap: 14px; }
+  .detail { grid-template-columns: 1fr; gap: 14px; }
+  .detail .col-a { position: static; }
+  .detail .photo { max-width: 420px; margin: 0 auto; } .detail .nophoto { aspect-ratio: 4 / 3; }
   dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; }
   .weigh label { flex: 1 1 100%; } .weigh .btn { flex: 1 1 100%; min-height: var(--h-control-lg); }
   .actions .btn, .actions form, .quick .btn, .quick form { flex: 1 1 calc(50% - 4px); }
@@ -497,6 +504,19 @@ dt { color: var(--text-2); } dd { margin: 0; overflow-wrap: anywhere; }
   .tbl.stack td.end { margin-left: auto; }
 }
 
+.weigh.query { margin-top: 0; }
+@media (min-width: 900px) { .weigh .grow { flex: 2 1 260px; } .weigh .grams { flex: 0 1 110px; } }
+.inbox-item { margin-bottom: 12px; }
+.alts a { display: inline-flex; align-items: center; gap: 3px; margin-right: 8px; }
+/* первая колонка — номер: на телефоне рисуем «№» перед ним (ячейку без атрибутов требуют тесты) */
+@media (max-width: 559px) {
+  .tbl.stack.numfirst td:first-child { font-family: var(--font-num); font-weight: 700; color: var(--text-2); }
+  .tbl.stack.numfirst td:first-child::before { content: "№"; }
+  .tbl.stack.numfirst td:first-child + td.primary { flex-basis: auto; flex: 1 1 0; }
+  .tbl.stack.slotfirst td:first-child { font-weight: 700; color: var(--text-2); }
+  .tbl.stack.slotfirst td:first-child::before { content: "Слот "; font-weight: 400; color: var(--text-3); }
+}
+
 /* --- разное по страницам --------------------------------------------------------------- */
 .login { max-width: 360px; margin: 40px auto; background: var(--surface); padding: 24px; border: 1px solid var(--border);
          border-radius: var(--r-xl); display: grid; gap: 14px; box-shadow: var(--shadow-2); }
@@ -532,6 +552,11 @@ dt { color: var(--text-2); } dd { margin: 0; overflow-wrap: anywhere; }
     linear-gradient(var(--accent), var(--accent)) bottom left / 28px 3px, linear-gradient(var(--accent), var(--accent)) bottom left / 3px 28px,
     linear-gradient(var(--accent), var(--accent)) bottom right / 28px 3px, linear-gradient(var(--accent), var(--accent)) bottom right / 3px 28px;
   background-repeat: no-repeat; }
+.scan-status { max-width: 520px; color: var(--text-2); font-size: .875rem; margin: 0 0 14px; }
+.scan-manual { display: flex; gap: 8px; max-width: 520px; }
+.scan-manual input { flex: 1; min-width: 0; }
+@media (max-width: 559px) { .scan-box { margin-left: auto; margin-right: auto; } }
+.color-pick input { width: 100%; }
 .cfs-rows { display: grid; gap: 8px; }
 .cfs-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--surface); border: 1px solid var(--border);
            border-radius: var(--r-md); padding: 8px 10px; }
