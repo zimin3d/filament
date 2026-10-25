@@ -9,15 +9,15 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<main>
-<h1>🧵 Филамент в наличии <span class="small muted" style="font-weight: 400">· {{ total }} катушек</span></h1>
+<main class="showcase">
+<h1>Филамент в наличии <span class="pill num">{{ total }} катушек</span></h1>
 {% if not groups %}<p class="empty">Сейчас ничего нет.</p>{% endif %}
 {% for material, items in groups %}
-<h2>{{ material }} <span class="small muted">({{ items|length }})</span></h2>
+<h2>{{ material }} <span class="pill num">{{ items|length }}</span></h2>
 <div class="show-grid">
   {% for it in items %}
   <div class="show-item">
-    <span class="swatch big" style="background: {{ it.swatch }}"></span>
+    <span class="mini-art" aria-hidden="true"><span class="spool-art" style="--sw: {{ it.swatch }}"></span></span>
     <div><b>{{ it.color or 'без названия' }}</b>
       <div class="small muted">{{ it.manufacturer }}{% if it.material != material %} · {{ it.material }}{% endif %}</div>
       <div class="bar"><span style="width: {{ it.pct }}%"></span></div>

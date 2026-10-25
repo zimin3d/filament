@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Статистика{% endblock %}
 {% block content %}
-<h1>Статистика <a class="btn" href="{{ url_for('report') }}" style="margin-left: auto">📄 Годовой отчёт</a></h1>
+<div class="page-head"><h1>Статистика</h1><a class="btn" href="{{ url_for('report') }}">Годовой отчёт</a></div>
 <section class="stats">
   <div><span class="num">{{ totals.count }}</span><span class="lbl">катушек всего</span></div>
   <div><span class="num">{{ totals.spent|money }}</span><span class="lbl">потрачено на покупку{% if totals.no_price %} · у {{ totals.no_price }} нет цены{% endif %}</span></div>
@@ -9,15 +9,15 @@
 
 <h2>По месяцам</h2>
 {% if not months %}<p class="empty">Нет данных: нужны даты покупки или записи о расходе.</p>{% else %}
-<div class="table-wrap"><table class="tbl">
-  <thead><tr><th>Месяц</th><th>Куплено</th><th>Израсходовано</th><th class="bar-col"></th><th>Стоимость расхода</th><th>Печатей</th><th>Время</th></tr></thead>
+<div class="table-wrap"><table class="tbl stack">
+  <thead><tr><th>Месяц</th><th class="n">Куплено</th><th class="n">Израсходовано</th><th class="bar-col"></th><th class="n">Стоимость расхода</th><th class="n">Печатей</th><th class="n">Время</th></tr></thead>
   <tbody>{% for m in months %}
-    <tr><td class="nowrap">{{ m.month[5:] }}.{{ m.month[:4] }}</td>
-      <td class="nowrap">{% if m.bought_n %}{{ m.bought_n }} шт · {{ m.bought|money }}{% else %}—{% endif %}</td>
-      <td class="nowrap">{{ m.used|grams if m.used else '—' }}</td>
+    <tr><td class="primary n">{{ m.month[5:] }}.{{ m.month[:4] }}</td>
+      <td class="n" data-label="куплено">{% if m.bought_n %}{{ m.bought_n }} шт · {{ m.bought|money }}{% else %}—{% endif %}</td>
+      <td class="n" data-label="расход">{{ m.used|grams if m.used else '—' }}</td>
       <td class="bar-col"><div class="hbar" title="{{ m.used|grams }}"><span style="width: {{ m.pct }}%"></span></div></td>
-      <td class="nowrap">{{ m.used_cost|money if m.used_cost else '—' }}</td>
-      <td>{{ m.jobs or '—' }}</td><td class="nowrap">{{ m.minutes|duration }}</td></tr>
+      <td class="n" data-label="стоимость">{{ m.used_cost|money if m.used_cost else '—' }}</td>
+      <td class="n" data-label="печатей">{{ m.jobs or '—' }}</td><td class="n" data-label="время">{{ m.minutes|duration }}</td></tr>
   {% endfor %}</tbody>
 </table></div>
 {% endif %}
@@ -25,13 +25,13 @@
 {% for title, rows, swatch in [('Больше всего расходуется — материалы', top_materials, false), ('Больше всего расходуется — цвета', top_colors, true)] %}
 <h2>{{ title }}</h2>
 {% if not rows %}<p class="empty">Расход ещё не записывался.</p>{% else %}
-<div class="table-wrap"><table class="tbl">
-  <thead><tr><th></th><th>Израсходовано</th><th class="bar-col"></th><th>Стоимость</th></tr></thead>
+<div class="table-wrap"><table class="tbl stack">
+  <thead><tr><th></th><th class="n">Израсходовано</th><th class="bar-col"></th><th class="n">Стоимость</th></tr></thead>
   <tbody>{% for r in rows %}
     <tr><td class="nowrap">{% if swatch %}<span class="swatch" style="background: {{ r.hex }}"></span> {% endif %}<b>{{ r.name }}</b></td>
-      <td class="nowrap">{{ r.used|grams }}</td>
+      <td class="n" data-label="расход">{{ r.used|grams }}</td>
       <td class="bar-col"><div class="hbar"><span style="width: {{ r.pct }}%"></span></div></td>
-      <td class="nowrap">{{ r.cost|money if r.cost else '—' }}</td></tr>
+      <td class="n t2" data-label="стоимость">{{ r.cost|money if r.cost else '—' }}</td></tr>
   {% endfor %}</tbody>
 </table></div>
 {% endif %}
@@ -40,24 +40,24 @@
 <h2>Слайсер против весов</h2>
 <p class="small muted">Сколько списали по слайсеру между двумя взвешиваниями и сколько ушло на самом деле. Большое расхождение — повод поправить плотность/поток в профиле или проверить вес пустой катушки.</p>
 {% if not accuracy %}<p class="empty">Пока нет данных: запишите печати (граммы из слайсера), а потом взвесьте катушку.</p>{% else %}
-<div class="table-wrap"><table class="tbl">
-  <thead><tr><th>Материал</th><th>Производитель</th><th>Замеров</th><th>По слайсеру</th><th>По весам</th><th>Разница</th></tr></thead>
+<div class="table-wrap"><table class="tbl stack">
+  <thead><tr><th>Материал</th><th>Производитель</th><th class="n">Замеров</th><th class="n">По слайсеру</th><th class="n">По весам</th><th class="n">Разница</th></tr></thead>
   <tbody>{% for a in accuracy %}
-    <tr><td><b>{{ a.material }}</b></td><td>{{ a.manufacturer }}</td><td>{{ a.n }}</td>
-      <td class="nowrap">{{ a.slicer|grams }}</td><td class="nowrap">{{ a.actual|grams }}</td>
-      <td class="nowrap {{ 'warn' if a.diff|abs >= 10 else 'muted' }}">{{ '%+d'|format(a.diff) }}%</td></tr>
+    <tr><td><b>{{ a.material }}</b></td><td>{{ a.manufacturer }}</td><td class="n" data-label="замеров">{{ a.n }}</td>
+      <td class="n" data-label="слайсер">{{ a.slicer|grams }}</td><td class="n" data-label="весы">{{ a.actual|grams }}</td>
+      <td class="n {{ 'warn' if a.diff|abs >= 10 else 'muted' }}" data-label="разница">{{ '%+d'|format(a.diff) }}%</td></tr>
   {% endfor %}</tbody>
 </table></div>
 {% endif %}
 
 <h2>Цена за кг по производителям</h2>
 {% if not prices %}<p class="empty">Нет катушек с ценой.</p>{% else %}
-<div class="table-wrap"><table class="tbl">
-  <thead><tr><th>Материал</th><th>Производитель</th><th>Катушек</th><th>Средняя за кг</th><th>Разброс</th></tr></thead>
+<div class="table-wrap"><table class="tbl stack">
+  <thead><tr><th>Материал</th><th>Производитель</th><th class="n">Катушек</th><th class="n">Средняя за кг</th><th class="n">Разброс</th></tr></thead>
   <tbody>{% for p in prices %}
-    <tr><td><b>{{ p.material }}</b></td><td>{{ p.manufacturer }}</td><td>{{ p.n }}</td>
-      <td class="nowrap">{{ p.per_kg|money }}</td>
-      <td class="nowrap muted">{% if p.n > 1 and p.min_kg != p.max_kg %}{{ p.min_kg|money }} – {{ p.max_kg|money }}{% endif %}</td></tr>
+    <tr><td><b>{{ p.material }}</b></td><td>{{ p.manufacturer }}</td><td class="n" data-label="катушек">{{ p.n }}</td>
+      <td class="n" data-label="за кг">{{ p.per_kg|money }}</td>
+      <td class="n muted" data-label="разброс">{% if p.n > 1 and p.min_kg != p.max_kg %}{{ p.min_kg|money }} – {{ p.max_kg|money }}{% endif %}</td></tr>
   {% endfor %}</tbody>
 </table></div>
 {% endif %}

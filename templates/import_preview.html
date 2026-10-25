@@ -28,19 +28,19 @@
   </div>
 
   <label class="check"><input type="checkbox" name="skip_dups" value="1" {% if skip_dups %}checked{% endif %}>
-    &nbsp;узнавать катушки, которые уже есть в базе (по №; без номера — по производителю, типу, цвету и дате покупки)</label>
+    узнавать катушки, которые уже есть в базе (по №; без номера — по производителю, типу, цвету и дате покупки)</label>
   <label class="check"><input type="checkbox" name="do_update" value="1" {% if do_update %}checked{% endif %}>
-    &nbsp;обновлять у них поля, изменённые в таблице (пустые ячейки ничего не стирают; остаток и история не меняются)</label>
+    обновлять у них поля, изменённые в таблице (пустые ячейки ничего не стирают; остаток и история не меняются)</label>
 
   {% if counts.sheet_photos %}
   <label class="check"><input type="checkbox" name="use_photos" value="1" {% if use_photos %}checked{% endif %}>
-    &nbsp;взять фото из таблицы ({{ counts.sheet_photos }} шт.); катушкам, которые уже есть в базе без фото, фото будет добавлено</label>
+    взять фото из таблицы ({{ counts.sheet_photos }} шт.); катушкам, которые уже есть в базе без фото, фото будет добавлено</label>
   {% endif %}
 
-  <div class="actions">
+  <div class="form-bar">
     <button class="btn" name="action" value="preview">Обновить предпросмотр</button>
     <button class="btn primary" name="action" value="run" {% if not counts.new and not counts.photo_only and not counts.updates %}disabled{% endif %}>Импортировать: новых {{ counts.new }}{% if counts.updates %}, обновить {{ counts.updates }}{% endif %}{% if counts.photo_only %}, фото к {{ counts.photo_only }}{% endif %}</button>
-    <a class="btn" href="{{ url_for('import_start') }}">Другая таблица</a>
+    <a class="btn ghost" href="{{ url_for('import_start') }}">Другая таблица</a>
   </div>
 </form>
 
@@ -48,7 +48,7 @@
 <p class="small">Всего {{ counts.total }}: новых <b>{{ counts.new }}</b>{% if counts.dups %}, уже есть в базе {{ counts.dups }}{% if counts.updates %} (из них изменились {{ counts.updates }}){% endif %}{% endif %}{% if counts.errors %}, <span class="err">с ошибками {{ counts.errors }}</span>{% endif %}.
   Вес, если его нет в таблице, — 1000 г, остаток — равен весу.</p>
 <div class="table-wrap">
-<table class="tbl">
+<table class="tbl dense">
   <thead><tr><th>Стр.</th><th></th><th>Фото</th><th>№</th><th>Производитель</th><th>Тип</th><th>Цвет</th><th>Вес / остаток</th><th>Цена</th><th>Покупка</th><th>Вскрыта</th><th>Ссылка</th><th>Замечания</th></tr></thead>
   <tbody>
   {% for r in rows %}{% set d = r.data %}

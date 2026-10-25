@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Нет связи{% endblock %}
 {% block content %}
+<div class="empty offline">
 <h1>Нет связи с сервером</h1>
 <p class="muted">Открытые раньше страницы доступны из памяти телефона. Изменения сохранить нельзя, пока нет интернета.</p>
-<p><a class="btn" href="{{ url_for('index') }}">Попробовать снова</a></p>
+<p><a class="btn primary" href="{{ url_for('index') }}">Попробовать снова</a></p>
+</div>
 {% endblock %}

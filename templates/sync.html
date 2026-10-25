@@ -3,15 +3,15 @@
 {% block content %}
 <h1>Синхронизация</h1>
 {% if phone %}
-<h2>Приложение</h2>
+<h2 class="first">Приложение</h2>
 {% if update %}
 <div class="flash ok">Доступна версия <b>{{ update.version }}</b> (установлена {{ update.current or '?' }}).
   <a class="btn primary" href="{{ url_for('app_update_install', url=update.apk) }}">⤓ Скачать обновление</a>
   <div class="small muted">Файл скачается в браузере — откройте его и установите поверх; данные сохранятся.</div></div>
 {% endif %}
-<form method="post" class="inline">
+<form method="post" class="actions">
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-  <span>Версия: <b>{{ app_version or '?' }}</b></span>
+  <span>Версия: <b class="num">{{ app_version or '?' }}</b></span>
   <button class="btn" name="action" value="update">Проверить обновление</button>
 </form>
 {% else %}
@@ -23,13 +23,13 @@
   на сервер и забирает чужие; если одну катушку меняли и там, и там — остаётся более позднее изменение.
   Журнал изменений у каждого устройства свой.</p>
 {% if last %}<p>Последняя: {{ last.at }}. {{ summary(last) }}</p>{% endif %}
-<p>Не отправлено изменений: <b>{{ pending }}</b></p>
-<form method="post" class="inline">
+<p>Не отправлено изменений: <b class="num">{{ pending }}</b></p>
+<form method="post" class="actions">
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-  <button class="btn primary" name="action" value="run"{% if not cfg.sync_url or not cfg.sync_token %} disabled{% endif %}>↻ Синхронизировать</button>
+  <button class="btn primary lg" name="action" value="run"{% if not cfg.sync_url or not cfg.sync_token %} disabled{% endif %}>↻ Синхронизировать</button>
 </form>
 <h2>Сервер</h2>
-<form method="post" class="weigh">
+<form method="post" class="weigh query">
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
   <label style="flex: 1 1 100%">Адрес<input name="url" value="{{ cfg.sync_url or '' }}" placeholder="https://example.com/filament/" inputmode="url" autocomplete="off"></label>
   <label style="flex: 1 1 100%">Ключ{% if cfg.sync_token %} (сохранён — оставьте пустым, чтобы не менять){% endif %}
@@ -43,7 +43,7 @@
 <p>Адрес сервера: <code>{{ request.url_root }}</code></p>
 {% if token %}
 <p>Ключ — скопируйте в приложение сейчас, второй раз он не показывается:</p>
-<p><code class="big-input" style="user-select: all; word-break: break-all">{{ token }}</code></p>
+<p><code class="token">{{ token }}</code></p>
 {% elif has_token %}<p>Ключ создан. Если потерян — создайте новый (старый перестанет действовать).</p>
 {% else %}<p>Ключа ещё нет.</p>{% endif %}
 <form method="post" class="inline">

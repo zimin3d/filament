@@ -517,6 +517,33 @@ dt { color: var(--text-2); } dd { margin: 0; overflow-wrap: anywhere; }
   .tbl.stack.slotfirst td:first-child::before { content: "Слот "; font-weight: 400; color: var(--text-3); }
 }
 
+h2.first { margin-top: 0; }
+.report-tools { display: flex; gap: 8px; align-items: center; }
+.finished { line-height: 2; }
+.threshold label.check { font-weight: 500; } .threshold input { width: 90px; }
+@media (max-width: 559px) {
+  .tbl.stack.jobs td.pic { order: -1; }
+  .tbl.stack.jobs td.day { order: 1; flex-basis: 100%; font-size: .75rem; }
+  .tbl.stack td.changes { flex-basis: 100%; }
+}
+
+.stats .bad .num { color: var(--danger); font-size: 1.25rem; }
+.trays { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tray { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--r-lg); padding: 10px 12px; }
+.tray > span:nth-child(2) { display: grid; flex: 1; min-width: 0; }
+@media (max-width: 559px) { .trays { grid-template-columns: 1fr 1fr; } }
+.on-printer { margin-top: 8px; }
+code.token { display: block; font-size: 1.125rem; padding: 12px 14px; user-select: all; word-break: break-all; }
+
+.offline h1 { justify-content: center; color: var(--text); }
+label.btn { flex-direction: row; }
+
+.mini-art { position: relative; width: 56px; height: 56px; flex: none; border-radius: var(--r-md); background: var(--thumb-bg); }
+.mini-art .spool-art { width: 64%; box-shadow: 0 0 0 3px var(--flange), 0 0 0 4px var(--flange-edge); }
+main.showcase { padding-bottom: 32px; }
+.prose h2 { scroll-margin-top: calc(var(--h-appbar) + 12px); }
+
 /* --- разное по страницам --------------------------------------------------------------- */
 .login { max-width: 360px; margin: 40px auto; background: var(--surface); padding: 24px; border: 1px solid var(--border);
          border-radius: var(--r-xl); display: grid; gap: 14px; box-shadow: var(--shadow-2); }
@@ -569,7 +596,6 @@ dt { color: var(--text-2); } dd { margin: 0; overflow-wrap: anywhere; }
              border-radius: var(--r-lg); padding: 10px 12px; }
 .show-item > div { flex: 1; min-width: 0; }
 .show-item .bar { margin: 6px 0 2px; }
-.show-item .swatch.big { width: 40px; height: 40px; }
 .ui-label { display: inline-block; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-xs);
             padding: 0 6px; font-weight: 600; font-size: .875em; white-space: nowrap; }
 .help-toc { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 12px; }

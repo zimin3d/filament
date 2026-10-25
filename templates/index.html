@@ -2,7 +2,7 @@
 {% block content %}
 {% import "_nav.html" as nav with context %}
 <h1>{{ 'Закончились' if empty_page else 'Катушки' }}</h1>
-{% if inbox_count and not empty_page %}<a class="banner" href="{{ url_for('inbox') }}">{{ nav.icon('inbox') }}С принтера пришло печатей: {{ inbox_count }} — разнести по катушкам{{ nav.icon('right') }}</a>{% endif %}
+{% if not empty_page %}{{ nav.inbox_banner() }}{% endif %}
 <section class="stats">
   <div><span class="num">{{ stats.count }}</span><span class="lbl">катушек</span></div>
   <div><span class="num">{{ (stats.weight_left / 1000)|round(2) }} <small>кг</small></span><span class="lbl">остаток</span></div>

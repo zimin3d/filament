@@ -14,9 +14,9 @@
     {% endfor %}
     <label class="wide">Заметки<textarea name="notes" rows="3">{{ p.notes or '' }}</textarea></label>
   </fieldset>
-  <div class="actions">
+  <div class="form-bar">
     <button class="btn primary">Сохранить</button>
-    <a class="btn" href="{{ url_for('profiles') }}">Отмена</a>
+    <a class="btn ghost" href="{{ url_for('profiles') }}">Отмена</a>
     {% if pid is not none %}<button class="btn danger" name="delete" value="1" data-confirm="Удалить настройки?" formnovalidate>Удалить</button>{% endif %}
   </div>
 </form>

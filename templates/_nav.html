@@ -38,6 +38,8 @@
   {{- caller(out) -}}
 {% endmacro %}
 
+{% macro inbox_banner() %}{% if inbox_count %}<a class="banner" href="{{ url_for('inbox') }}">{{ icon('inbox') }}С принтера пришло печатей: {{ inbox_count }} — разнести по катушкам{{ icon('right') }}</a>{% endif %}{% endmacro %}
+
 {% macro badge(kind, n) %}{% if n %}<span class="nav-badge" data-badge="{{ kind }}">{{ n }}</span>{% endif %}{% endmacro %}
 {% set BADGE = {'printer': 'maint', 'inbox': 'inbox'} %}
 

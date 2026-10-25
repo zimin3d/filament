@@ -1,12 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Справка{% endblock %}
 {% block content %}
-<h1>❓ Справка</h1>
-<nav class="small" aria-label="Разделы">
-  <a href="#install">Установка приложения</a> · <a href="#start">С чего начать</a> · <a href="#sync">Синхронизация</a> ·
-  <a href="#import">Импорт таблицы</a> · <a href="#spools">Катушки и расход</a> · <a href="#printer">Принтер</a> ·
-  <a href="#labels">Этикетки и QR</a> · <a href="#update">Обновление</a>
+<h1>Справка</h1>
+<nav class="help-toc" aria-label="Разделы">
+  {% for a, t in [('install', 'Установка'), ('start', 'С чего начать'), ('sync', 'Синхронизация'), ('import', 'Импорт'), ('spools', 'Катушки и расход'), ('printer', 'Принтер'), ('labels', 'Этикетки и QR'), ('update', 'Обновление')] %}<a class="chip" href="#{{ a }}">{{ t }}</a>{% endfor %}
 </nav>
+<div class="prose">
 
 <h2 id="install">Установка приложения на Android</h2>
 <p>Приложение ставится файлом .apk со страницы выпусков — <a href="{{ releases_url }}" target="_blank" rel="noopener">последняя версия</a>.
@@ -77,4 +76,5 @@
 <h2 id="update">Обновление приложения</h2>
 <p>В приложении: «Синхронизация» → «Проверить обновление» → «Скачать обновление»: файл скачает браузер,
   дальше — как при <a href="#install">установке</a> (ставится поверх, данные сохраняются).</p>
+</div>
 {% endblock %}
