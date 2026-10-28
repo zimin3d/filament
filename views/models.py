@@ -48,6 +48,7 @@ def print_add(spool_id):
     if row is None:
         abort(404)
     back = redirect(url_for("spool_detail", spool_id=spool_id) + "#prints")
+    fail = redirect(url_for("spool_detail", spool_id=spool_id, panel="print") + "#record")  # с открытой формой
     caption = request.form.get("caption", "").strip()[:200]
     try:
         raw_g = request.form.get("grams", "").replace(",", ".").replace(" ", "")
@@ -56,18 +57,18 @@ def print_add(spool_id):
             raise ValueError("Граммы должны быть больше нуля.")
         minutes = parse_duration(request.form.get("duration", ""))
         if grams and over_limit(row, grams):
-            return back
+            return fail
         models = [save_model(f) for f in request.files.getlist("models")]
         photos = [save_photo(f) for f in request.files.getlist("photos")]
     except ValueError as e:
         flash(str(e) if any(w in str(e) for w in ("Фото", "Время", "Граммы", "STL", "stl", "треугольник"))
               else "Граммы — числом.", "error")
-        return back
+        return fail
     photos = [p for p in photos if p]
     models = [m for m in models if m]
     if not photos and not models and grams is None and minutes is None:
         flash("Укажите граммы, время, фото или модель.", "error")
-        return back
+        return fail
     job_id = None
     if grams is not None or minutes is not None:
         job_id = record_job(db, spool_id, date.today().isoformat(), caption, grams, minutes)

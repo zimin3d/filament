@@ -386,9 +386,9 @@ def spool_use(spool_id):
             raise ValueError
     except ValueError:
         flash("Введите расход числом, в граммах.", "error")
-        return redirect(url_for("spool_detail", spool_id=spool_id))
+        return redirect(url_for("spool_detail", spool_id=spool_id, panel="use"))
     if over_limit(row, grams):
-        return redirect(url_for("spool_detail", spool_id=spool_id))
+        return redirect(url_for("spool_detail", spool_id=spool_id, panel="use"))
     left = max(0.0, row["weight_left"] - grams)
     log_usage(db, row, left, source="slicer")
     db.execute("UPDATE spools SET weight_left = ?, opened_date = COALESCE(opened_date, ?) WHERE id = ?",

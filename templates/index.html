@@ -62,7 +62,7 @@
 {% if no_spools and is_admin and not empty_page %}
 <section class="section-card start">
   <h2>С чего начать</h2>
-  {% if phone %}<a class="start-i" href="{{ url_for('sync_page') }}">{{ nav.icon('refresh') }}<span><b>↻ Подключить сервер</b>
+  {% if phone %}<a class="start-i" href="{{ url_for('sync_page') }}">{{ nav.icon('refresh') }}<span><b>Подключить сервер</b>
     <span class="hint">Забрать катушки с сайта и дальше синхронизироваться с ним.</span></span>{{ nav.icon('right') }}</a>{% endif %}
   <a class="start-i" href="{{ url_for('import_start') }}">{{ nav.icon('sheet') }}<span><b>Загрузить из Google Таблицы / Excel</b>
     <span class="hint">По ссылке на таблицу или файлом.{% if phone %} Если данные уже есть на сервере — лучше подключить сервер, иначе катушки задвоятся.{% endif %}</span></span>{{ nav.icon('right') }}</a>

@@ -2,8 +2,8 @@
 {% block title %}{% if s.number %}№{{ s.number }} {% endif %}{{ s.manufacturer }} {{ s.material }} {{ s.color_name }}{% endblock %}
 {% block content %}
 {% import "_nav.html" as nav with context %}
-{# ошибка списания/записи (больше остатка, неверные граммы) — панели с формами сразу открыты #}
-{% set had_error = get_flashed_messages(category_filter=['error']) %}
+{# ошибка списания/записи (больше остатка, неверные граммы): ?panel= — какую форму открыть #}
+{% set panel = request.args.get('panel') %}
 <article class="detail">
   <div class="col-a">
   <div class="photo">
@@ -28,7 +28,7 @@
       <button class="btn primary">Записать остаток</button>
       {% if tare_src == 'default' %}<span class="hint">вес пустой катушки {{ s.manufacturer }} неизвестен — взят типовой; взвесьте пустую и исправьте</span>{% endif %}
     </form>
-    <details class="panel"{% if had_error %} open{% endif %}>
+    <details class="panel"{% if panel == 'use' %} open{% endif %}>
       <summary>…или списать по слайсеру</summary>
       <form class="weigh" method="post" action="{{ url_for('spool_use', spool_id=s.id) }}">
         <input type="hidden" name="csrf" value="{{ csrf_token() }}">
@@ -125,7 +125,7 @@
     </table></div>
     {% endif %}
     {% if is_admin %}
-    <details class="panel"{% if had_error or (not jobs and not prints) %} open{% endif %}>
+    <details class="panel" id="record"{% if panel == 'print' or (not jobs and not prints) %} open{% endif %}>
     <summary>{{ nav.icon('plus') }}Записать печать</summary>
     <form class="weigh js-resize" method="post" enctype="multipart/form-data" action="{{ url_for('print_add', spool_id=s.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">

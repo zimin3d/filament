@@ -99,9 +99,3 @@ def theme():
     resp.set_cookie("theme", nxt, max_age=365 * 86400, samesite="Lax", httponly=True)
     return resp
 
-
-# временно: прототип редизайна (private/design — не в git; файла нет → 404). Убрать после редизайна.
-@app.route("/design-preview")
-@admin_required
-def design_preview():
-    return send_from_directory(os.path.join(BASE_DIR, "private", "design"), "prototype.html", max_age=0)

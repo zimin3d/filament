@@ -66,7 +66,7 @@ document.documentElement.classList.remove("no-js");
         if (e.target.name !== "grams") return;
         var g = parseFloat(e.target.value.replace(",", ".").replace(/\s/g, ""));
         var over = g > limit + 0.5, box = e.target.form.querySelector(".over-confirm");
-        if (box) box.style.display = over ? "" : "none";
+        if (box) box.style.display = over ? "flex" : "";  // по умолчанию скрыта в CSS
         e.target.setCustomValidity("");
         e.target.title = over ? "Больше остатка по учёту (" + Math.round(limit) + " г)" : "";
         e.target.classList.toggle("over", over);

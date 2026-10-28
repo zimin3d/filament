@@ -63,7 +63,7 @@
     <a class="nav-i" href="{{ url_for('import_start') }}"{% if request.endpoint in ('import_start', 'import_preview') %} aria-current="page"{% endif %}>{{ icon('sheet') }}Импорт таблицы</a>
     {% if sheet_url %}<form method="post" action="{{ url_for('import_start') }}" class="inline">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="sheet_url" value="{{ sheet_url }}">
-      <button class="nav-i" title="Загрузить таблицу заново и показать, что изменилось">{{ icon('refresh') }}↻ Из таблицы</button>
+      <button class="nav-i" title="Загрузить таблицу заново и показать, что изменилось">{{ icon('sheet') }}↻ Из таблицы</button>
     </form>{% endif %}
     <a class="nav-i" href="{{ url_for('fill') }}"{% if request.endpoint == 'fill' %} aria-current="page"{% endif %}>{{ icon('table') }}Быстрое заполнение</a>
     <a class="nav-i" href="{{ url_for('history') }}"{% if request.endpoint == 'history' %} aria-current="page"{% endif %}>{{ icon('history') }}Журнал изменений</a>

@@ -836,7 +836,16 @@ def test_cfs_plan(admin, anon, db):
 
 def test_detail_panels_open_after_error(admin):
     sid = add_spool(admin, weight_left="100")
-    assert '<details class="panel" open>' not in admin.get("/spool/%d" % sid).get_data(as_text=True).split("Списать")[0]
-    r = admin.post("/spool/%d/use" % sid, data={"csrf": "t", "grams": "500"}, follow_redirects=True)
-    html = r.get_data(as_text=True)
-    assert "всё равно записать" in html and '<details class="panel" open>\n      <summary>…или списать' in html
+    admin.post("/spool/%d/prints" % sid, data={"csrf": "t", "grams": "10"})  # есть печать — панель записи свёрнута
+    html = admin.get("/spool/%d" % sid).get_data(as_text=True)
+    assert html.count('<details class="panel" open>') == 0 and '<details class="panel" id="record">' in html
+    # списание больше остатка — открыта только панель списания
+    r = admin.post("/spool/%d/use" % sid, data={"csrf": "t", "grams": "500"})
+    assert "panel=use" in r.location
+    html = admin.get(r.location).get_data(as_text=True)
+    assert '<details class="panel" open>\n      <summary>…или списать' in html and '<details class="panel" id="record">' in html
+    # запись печати с ошибкой — открыта только форма записи
+    r = admin.post("/spool/%d/prints" % sid, data={"csrf": "t", "grams": "500"})
+    assert "panel=print" in r.location and r.location.endswith("#record")
+    html = admin.get(r.location).get_data(as_text=True)
+    assert '<details class="panel" id="record" open>' in html and '<details class="panel" open>' not in html
