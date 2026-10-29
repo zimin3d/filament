@@ -849,3 +849,24 @@ def test_detail_panels_open_after_error(admin):
     assert "panel=print" in r.location and r.location.endswith("#record")
     html = admin.get(r.location).get_data(as_text=True)
     assert '<details class="panel" id="record" open>' in html and '<details class="panel" open>' not in html
+
+
+def test_fix_spool_weight_is_not_usage(admin, db):
+    """Катушку завели как 1 кг, а она 0,5 — исправление веса не расход и не «потраченные» деньги."""
+    def edit(sid, **kw):
+        data = {"csrf": "t", "manufacturer": "Plastiq", "material": "PETG", "color_name": "красный", "price": "1000"}
+        data.update(kw)
+        assert admin.post("/spool/%d/edit" % sid, data=data, content_type="multipart/form-data").status_code == 302
+    sid = add_spool(admin)  # 1000 из 1000, 1000 ₽
+    edit(sid, weight_total="500", weight_left="500")
+    assert db.execute("SELECT COUNT(*) FROM usage WHERE spool_id = ?", (sid,)).fetchone()[0] == 0
+    # уже потратили 100 г (900 из «1000»), на деле катушка 0,5 кг — осталось 400: расход по-прежнему 100 г
+    sid = add_spool(admin)
+    admin.post("/spool/%d/use" % sid, data={"csrf": "t", "grams": "100"})
+    edit(sid, weight_total="500", weight_left="400")
+    rows = db.execute("SELECT used, cost FROM usage WHERE spool_id = ? ORDER BY id", (sid,)).fetchall()
+    assert [r[0] for r in rows] == [100]
+    # настоящая поправка остатка вместе со сменой веса — пишется только разница
+    edit(sid, weight_total="1000", weight_left="850")  # +500 к весу, остаток 900 → 850: расход 50 г
+    used, cost = db.execute("SELECT used, cost FROM usage WHERE spool_id = ? ORDER BY id DESC", (sid,)).fetchone()
+    assert used == 50 and round(cost) == 50

@@ -610,10 +610,15 @@ def effective_tare(spool):
 
 def log_usage(db, row, new_left, total=None, price=None, source=""):
     """Записывает изменение остатка в историю расхода. source: weigh (весы), slicer/job (по слайсеру), edit."""
-    used = row["weight_left"] - new_left
+    before = row["weight_left"]
+    total = row["weight_total"] if total is None else total
+    if row["weight_total"] and total != row["weight_total"]:
+        # исправили вес катушки (была 1 кг, на деле 0,5) — это поправка учёта, а не расход:
+        # остаток «до» сдвигается на ту же разницу
+        before = max(0.0, before - (row["weight_total"] - total))
+    used = before - new_left
     if abs(used) < 0.5:
         return
-    total = row["weight_total"] if total is None else total
     price = row["price"] if price is None else price
     cost = used * price / total if price and total else None
     db.execute("INSERT INTO usage (spool_id, day, used, left_after, cost, source) VALUES (?, ?, ?, ?, ?, ?)",
