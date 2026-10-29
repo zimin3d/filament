@@ -24,9 +24,9 @@
       <b>{{ nav.icon('scale', 'ic xs') }} Взвесить</b>
       <label>На весах, г<input name="gross" inputmode="decimal" required autocomplete="off" placeholder="катушка целиком" class="big-input" enterkeyhint="done"></label>
       <label>Пустая катушка, г<input name="tare" inputmode="decimal" required value="{{ tare|field_num }}"></label>
-      <label class="check"><input type="checkbox" name="tare_for_all" value="1" {% if tare_src != 'spool' %}checked{% endif %}>для всех {{ s.manufacturer }}</label>
+      <label class="check"><input type="checkbox" name="tare_for_all" value="1" {% if tare_src != 'spool' %}checked{% endif %}>для всех {{ s.manufacturer }} на {{ s.weight_total|grams }}</label>
       <button class="btn primary">Записать остаток</button>
-      {% if tare_src == 'default' %}<span class="hint">вес пустой катушки {{ s.manufacturer }} неизвестен — взят типовой; взвесьте пустую и исправьте</span>{% endif %}
+      {% if tare_src == 'default' %}<span class="hint">вес пустой катушки {{ s.manufacturer }} на {{ s.weight_total|grams }} неизвестен — взят типовой; взвесьте пустую и исправьте</span>{% endif %}
     </form>
     <details class="panel"{% if panel == 'use' %} open{% endif %}>
       <summary>…или списать по слайсеру</summary>

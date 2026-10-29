@@ -34,7 +34,8 @@
   </fieldset>
   <fieldset>
     <legend>Вес и цена</legend>
-    <label>Вес пластика, г<input name="weight_total" value="{{ s.weight_total|field_num(1000) }}" inputmode="decimal"></label>
+    <label>Вес пластика, г<input name="weight_total" value="{{ s.weight_total|field_num(1000) }}" inputmode="decimal">
+      <span class="presets">{% for g in (250, 500, 750, 1000, 3000) %}<button type="button" class="chip" data-set="weight_total" data-value="{{ g }}">{{ (g ~ ' г') if g < 1000 else ((g // 1000) ~ ' кг') }}</button>{% endfor %}</span></label>
     <label>Остаток, г<input name="weight_left" value="{{ s.weight_left|field_num }}" placeholder="= весу пластика" inputmode="decimal"></label>
     <label>Цена, ₽<input name="price" value="{{ s.price|field_num }}" inputmode="decimal"></label>
   </fieldset>

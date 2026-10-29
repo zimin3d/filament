@@ -149,11 +149,18 @@ CREATE TABLE IF NOT EXISTS models (
 );
 CREATE INDEX IF NOT EXISTS models_spool ON models (spool_id);
 CREATE TABLE IF NOT EXISTS tares (
-    manufacturer    TEXT PRIMARY KEY COLLATE NOCASE,
-    weight          REAL NOT NULL
+    manufacturer    TEXT NOT NULL COLLATE NOCASE,
+    size            REAL NOT NULL DEFAULT 1000,  -- вес пластика катушки: у 0,5 и 1 кг пустые катушки разные
+    weight          REAL NOT NULL,
+    UNIQUE (manufacturer, size)
 );
 """
-DEFAULT_TARE = 250  # вес пустой катушки, если не известен
+DEFAULT_TARE = 250  # вес пустой катушки, если не известен (1 кг)
+DEFAULT_TARES = [(300, 110), (600, 180), (1100, 250)]  # (вес пластика до, типовая пустая катушка); больше — 400
+
+
+def default_tare(size):
+    return next((t for limit, t in DEFAULT_TARES if (size or 1000) <= limit), 400)
 # стартовый регламент для K2 Pro — ориентиры, правятся на странице «Принтер»
 DEFAULT_MAINTENANCE = [
     ("Протереть стол (изопропил)", 50, None, "Жир с рук — главная причина отлипания"),
@@ -278,6 +285,17 @@ def init_db():
             db.execute("ALTER TABLE spools ADD COLUMN ordered INTEGER NOT NULL DEFAULT 0")
         if "job_id" not in {r[1] for r in db.execute("PRAGMA table_info(prints)")}:  # фото привязаны к печати
             db.execute("ALTER TABLE prints ADD COLUMN job_id INTEGER")
+        tare_cols = [r[1] for r in db.execute("PRAGMA table_info(tares)")]
+        if "size" not in tare_cols:  # миграция: вес пустой катушки — по производителю и размеру (было: по производителю)
+            keep = ", uid" if "uid" in tare_cols else ""
+            db.execute("ALTER TABLE tares RENAME TO tares_old")
+            db.execute("CREATE TABLE tares (manufacturer TEXT NOT NULL COLLATE NOCASE, size REAL NOT NULL DEFAULT 1000, "
+                       "weight REAL NOT NULL, %s UNIQUE (manufacturer, size))" % ("uid TEXT," if keep else ""))
+            db.execute("INSERT INTO tares (manufacturer, size, weight%s) SELECT manufacturer, 1000, weight%s FROM tares_old"
+                       % (keep, keep))
+            db.execute("DROP TABLE tares_old")
+            for t in ("ins", "upd", "del"):  # триггеры синхронизации пересоздаст sync.setup
+                db.execute("DROP TRIGGER IF EXISTS tares_sync_%s" % t)
         if not db.execute("SELECT 1 FROM profiles LIMIT 1").fetchone():
             db.executemany("INSERT INTO profiles (material, nozzle, bed, speed, fan, drying, notes) "
                            "VALUES (?, ?, ?, ?, ?, ?, ?)", DEFAULT_PROFILES)

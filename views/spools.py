@@ -359,12 +359,12 @@ def spool_weigh(spool_id):
     db.execute("UPDATE spools SET weight_left = ?, tare = ?, opened_date = ? WHERE id = ?",
                (left, tare, opened, spool_id))
     if request.form.get("tare_for_all"):
-        db.execute("INSERT INTO tares (manufacturer, weight) VALUES (?, ?) "
-                   "ON CONFLICT(manufacturer) DO UPDATE SET weight = excluded.weight",
-                   (row["manufacturer"], tare))
-        # у остальных катушек производителя — общий вес вместо своего
-        db.execute("UPDATE spools SET tare = NULL WHERE manufacturer = ? COLLATE NOCASE AND id != ?",
-                   (row["manufacturer"], spool_id))
+        db.execute("INSERT INTO tares (manufacturer, size, weight) VALUES (?, ?, ?) "
+                   "ON CONFLICT(manufacturer, size) DO UPDATE SET weight = excluded.weight",
+                   (row["manufacturer"], row["weight_total"], tare))
+        # у остальных катушек производителя того же размера — общий вес вместо своего
+        db.execute("UPDATE spools SET tare = NULL WHERE manufacturer = ? COLLATE NOCASE AND weight_total = ? AND id != ?",
+                   (row["manufacturer"], row["weight_total"], spool_id))
     audit_end("Взвешена", spool_id, audit_state)
     db.commit()
     flash("Остаток: %d г (на весах %g г − катушка %g г)." % (left, gross, tare), "ok")

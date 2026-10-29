@@ -544,6 +544,10 @@ label.btn { flex-direction: row; }
 main.showcase { padding-bottom: 32px; }
 .prose h2 { scroll-margin-top: calc(var(--h-top) + 12px); }
 
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.presets .chip { min-height: 32px; padding: 0 10px; cursor: pointer; font-family: var(--font-num); }
+@media (pointer: coarse) { .presets .chip { min-height: 40px; } }
+
 /* --- разное по страницам --------------------------------------------------------------- */
 .login { max-width: 360px; margin: 40px auto; background: var(--surface); padding: 24px; border: 1px solid var(--border);
          border-radius: var(--r-xl); display: grid; gap: 14px; box-shadow: var(--shadow-2); }

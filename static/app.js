@@ -18,6 +18,13 @@ document.documentElement.classList.remove("no-js");
     var nav = e.target.closest(".nav-toggle");
     if (nav) { setNav(!document.body.classList.contains("nav-open")); return; }
     if (e.target.closest(".sheet-backdrop")) { setNav(false); return; }
+    // быстрые значения поля: <button data-set="имя поля" data-value="…">
+    var set = e.target.closest("[data-set]");
+    if (set && set.form) {
+      var f = set.form.elements[set.dataset.set];
+      if (f) { f.value = set.dataset.value; f.dispatchEvent(new Event("input", { bubbles: true })); }
+      return;
+    }
     var pw = e.target.closest(".pw-toggle");
     if (pw) {
       var i = document.getElementById(pw.dataset.target || "pw"), s = i.type === "password";

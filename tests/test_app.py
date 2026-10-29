@@ -870,3 +870,36 @@ def test_fix_spool_weight_is_not_usage(admin, db):
     edit(sid, weight_total="1000", weight_left="850")  # +500 к весу, остаток 900 → 850: расход 50 г
     used, cost = db.execute("SELECT used, cost FROM usage WHERE spool_id = ? ORDER BY id DESC", (sid,)).fetchone()
     assert used == 50 and round(cost) == 50
+
+
+def test_tare_per_size(admin, db):
+    """Вес пустой катушки — по производителю и размеру: 0,5 кг не портит 1 кг."""
+    big = add_spool(admin)                        # Plastiq 1000 г
+    small = add_spool(admin, weight_total="500")  # Plastiq 500 г
+    other_big = add_spool(admin)
+    html = admin.get("/spool/%d" % small).get_data(as_text=True)
+    assert 'name="tare" inputmode="decimal" required value="180"' in html and "для всех Plastiq на 500 г" in html
+    admin.post("/spool/%d/weigh" % small, data={"csrf": "t", "gross": "620", "tare": "140", "tare_for_all": "1"})
+    assert [tuple(r) for r in db.execute("SELECT manufacturer, size, weight FROM tares")] == [("Plastiq", 500, 140)]
+    assert 'required value="250"' in admin.get("/spool/%d" % big).get_data(as_text=True)  # 1 кг — по-прежнему типовой
+    admin.post("/spool/%d/weigh" % big, data={"csrf": "t", "gross": "1200", "tare": "230", "tare_for_all": "1"})
+    assert 'required value="230"' in admin.get("/spool/%d" % other_big).get_data(as_text=True)
+    assert 'required value="140"' in admin.get("/spool/%d" % small).get_data(as_text=True)
+    assert 'data-set="weight_total" data-value="500"' in admin.get("/spool/new").get_data(as_text=True)
+
+
+def test_tares_migration_from_manufacturer_only(tmp_path, monkeypatch):
+    """Старая таблица tares (только производитель) переезжает в новую с размером 1000 г, uid сохраняется."""
+    import sqlite3
+    import core
+    path = tmp_path / "old.db"
+    with sqlite3.connect(path) as old:
+        old.execute("CREATE TABLE tares (manufacturer TEXT PRIMARY KEY COLLATE NOCASE, weight REAL NOT NULL, uid TEXT)")
+        old.execute("INSERT INTO tares VALUES ('eSun', 215, 'a1')")
+    monkeypatch.setattr(core, "DB_PATH", str(path))
+    core.init_db()
+    core.init_db()  # повторный запуск ничего не ломает
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT manufacturer, size, weight, uid FROM tares").fetchall() == [("eSun", 1000, 215, "a1")]
+        assert {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE tbl_name = 'tares' AND type = 'trigger'")} \
+            == {"tares_sync_ins", "tares_sync_upd", "tares_sync_del"}

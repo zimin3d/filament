@@ -601,11 +601,12 @@ def audit_changes(entry):
 
 
 def effective_tare(spool):
-    """Вес пустой катушки: свой, иначе известный для производителя, иначе типовой."""
+    """Вес пустой катушки: свой, иначе известный для производителя и этого размера, иначе типовой для размера."""
     if spool["tare"] is not None:
         return spool["tare"], "spool"
-    row = get_db().execute("SELECT weight FROM tares WHERE manufacturer = ?", (spool["manufacturer"],)).fetchone()
-    return (row[0], "manufacturer") if row else (DEFAULT_TARE, "default")
+    row = get_db().execute("SELECT weight FROM tares WHERE manufacturer = ? AND size = ?",
+                           (spool["manufacturer"], spool["weight_total"])).fetchone()
+    return (row[0], "manufacturer") if row else (default_tare(spool["weight_total"]), "default")
 
 
 def log_usage(db, row, new_left, total=None, price=None, source=""):
