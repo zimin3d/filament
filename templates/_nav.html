@@ -66,6 +66,7 @@
       <button class="nav-i" title="Загрузить таблицу заново и показать, что изменилось">{{ icon('sheet') }}↻ Из таблицы</button>
     </form>{% endif %}
     <a class="nav-i" href="{{ url_for('fill') }}"{% if request.endpoint == 'fill' %} aria-current="page"{% endif %}>{{ icon('table') }}Быстрое заполнение</a>
+    {% if not phone %}<a class="nav-i" href="{{ url_for('telegram_page') }}"{% if request.endpoint == 'telegram_page' %} aria-current="page"{% endif %}>{{ icon('inbox') }}Telegram</a>{% endif %}
     <a class="nav-i" href="{{ url_for('history') }}"{% if request.endpoint == 'history' %} aria-current="page"{% endif %}>{{ icon('history') }}Журнал изменений</a>
     {% endif %}
     {% if is_admin %}<a class="nav-i" href="{{ url_for('sync_page') }}"{% if request.endpoint == 'sync_page' %} aria-current="page"{% endif %}>{{ icon('refresh') }}Синхронизация</a>{% endif %}

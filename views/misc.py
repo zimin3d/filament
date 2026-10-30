@@ -1,7 +1,8 @@
-"""Служебное: вход/выход, PWA (сервис-воркер, манифест, офлайн), ошибки."""
+"""Служебное: вход/выход, PWA (сервис-воркер, манифест, офлайн), тема, Telegram, ошибки."""
 import os
+import re
 
-from flask import flash, redirect, render_template, request, send_from_directory, session, url_for
+from flask import abort, flash, redirect, render_template, request, send_from_directory, session, url_for
 
 from werkzeug.security import check_password_hash
 from core import *  # noqa: F401,F403
@@ -99,3 +100,47 @@ def theme():
     resp.set_cookie("theme", nxt, max_age=365 * 86400, samesite="Lax", httponly=True)
     return resp
 
+
+
+@app.route("/telegram", methods=["GET", "POST"])
+@admin_required
+def telegram_page():
+    """Сводка в Telegram: подключить бота без консоли. Сама сводка уходит после ночной копии, если изменилась."""
+    import notify
+    if PHONE:
+        abort(404)  # на телефоне нет расписания — сводку шлёт сервер
+    cfg = load_config()
+    if request.method == "POST":
+        action = request.form.get("action")
+        try:
+            if action == "token":
+                token = request.form.get("token", "").strip()
+                if not re.fullmatch(r"\d{5,12}:[A-Za-z0-9_-]{30,60}", token):
+                    raise notify.NotifyError("Это не похоже на токен бота: его выдаёт @BotFather, вида 123456789:AA…")
+                me = notify.call(token, "getMe")
+                cfg.update(telegram_token=token, telegram_bot=me.get("username", ""))
+                cfg.pop("telegram_chat", None)
+                save_config(cfg)
+                flash("Бот @%s подключён. Откройте его в Telegram, отправьте /start и нажмите «Найти чат»."
+                      % cfg["telegram_bot"], "ok")
+            elif action == "chat" and cfg.get("telegram_token"):
+                chat, who = notify.find_chat(cfg["telegram_token"])
+                notify.send(cfg["telegram_token"], chat, "✅ Уведомления учёта филамента подключены.")
+                cfg.update(telegram_chat=chat)
+                save_config(cfg)
+                flash("Готово: сообщения пойдут в чат %s." % (who or chat), "ok")
+            elif action == "test" and cfg.get("telegram_chat"):
+                text = digest_text(request.url_root)
+                notify.send(cfg["telegram_token"], cfg["telegram_chat"],
+                            text or "Всё в порядке: катушек на исходе нет, сушить нечего, обслуживание не нужно.")
+                flash("Сводка отправлена.", "ok")
+            elif action == "off":
+                for k in ("telegram_token", "telegram_chat", "telegram_bot", "notify_last"):
+                    cfg.pop(k, None)
+                save_config(cfg)
+                flash("Telegram отключён.", "ok")
+        except notify.NotifyError as e:
+            flash(str(e), "error")
+        return redirect(url_for("telegram_page"))
+    return render_template("telegram.html", bot=cfg.get("telegram_bot"), has_token=bool(cfg.get("telegram_token")),
+                           has_chat=bool(cfg.get("telegram_chat")))

@@ -789,4 +789,12 @@ def thumb_name(name):
 NOTIFY_THRESHOLD = 200
 
 
+def digest_text(base_url):
+    """Сводка для Telegram (на исходе, пора сушить, обслуживание) или None — общая для сайта и cli."""
+    import notify
+    spools = [spool_view(r) for r in get_db().execute("SELECT * FROM spools ORDER BY " + SORTS["number"])]
+    maint = [m for m in maintenance_status()[1] if m["due"]]
+    return notify.digest(spools, NOTIFY_THRESHOLD, base_url, maint)
+
+
 UNDO_DAYS = 30  # столько дней держим файлы, чтобы удаление можно было отменить

@@ -21,5 +21,6 @@ ls -1t "$DEST"/filament-*.tar.gz | tail -n +$((KEEP + 1)) | xargs -r rm --
 "$DIR/venv/bin/python" "$DIR/deploy/verify_backup.py" "$DEST/filament-$STAMP.tar.gz"
 # после проверенной копии — убрать неиспользуемые файлы (фото удалённого держим 30 дней ради отмены)
 cd "$DIR" && "$DIR/venv/bin/python" app.py cleanup
+"$DIR/venv/bin/python" app.py notify --quiet || true  # сводка в Telegram, если подключён и что-то изменилось
 # зашифрованная копия вне сервера (если настроена: app.py offsite-setup); сбой не мешает остальному
 "$DIR/venv/bin/python" "$DIR/deploy/offsite.py" "$DEST/filament-$STAMP.tar.gz" || true

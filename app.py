@@ -47,7 +47,7 @@ if __name__ == "__main__":
     elif sys.argv[1:] == ["set-telegram"]:
         cli_set_telegram()
     elif sys.argv[1:2] == ["notify"]:
-        cli_notify(force="--force" in sys.argv)
+        cli_notify(force="--force" in sys.argv, quiet="--quiet" in sys.argv)
     elif sys.argv[1:] == ["sync"]:
         cli_sync()
     else:

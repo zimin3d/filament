@@ -29,3 +29,40 @@ def test_digest_and_dedup(admin, db, monkeypatch, capsys):
 
 def test_not_configured(capsys):
     assert filament.telegram("x") is False
+
+
+def test_telegram_page(admin, anon, monkeypatch):
+    """Подключение бота со страницы сайта: токен → чат → пробная сводка; без консоли."""
+    import app as filament
+    import notify
+    calls = []
+
+    def fake_call(token, method, **params):
+        calls.append((method, params))
+        if method == "getMe":
+            return {"username": "filament_bot"}
+        if method == "getUpdates":
+            return [{"message": {"chat": {"id": 42, "first_name": "Я"}}}]
+        return {}
+    monkeypatch.setattr(notify, "call", fake_call)
+    assert anon.get("/telegram").status_code == 302
+    assert "Telegram" in admin.get("/").get_data(as_text=True)
+    token = "123456789:" + "A" * 35
+    admin.post("/telegram", data={"csrf": "t", "action": "token", "token": "мусор"})
+    assert not filament.load_config().get("telegram_token")
+    admin.post("/telegram", data={"csrf": "t", "action": "token", "token": token})
+    assert filament.load_config()["telegram_bot"] == "filament_bot"
+    admin.post("/telegram", data={"csrf": "t", "action": "chat"})
+    assert filament.load_config()["telegram_chat"] == 42
+    admin.post("/telegram", data={"csrf": "t", "action": "test"})
+    assert calls[-1][0] == "sendMessage" and calls[-1][1]["chat_id"] == 42
+    html = admin.get("/telegram").get_data(as_text=True)
+    assert "@filament_bot" in html and token not in html  # токен на страницу не выводится
+    admin.post("/telegram", data={"csrf": "t", "action": "off"})
+    assert not filament.load_config().get("telegram_chat")
+
+
+def test_notify_quiet_without_telegram(capsys):
+    import cli
+    cli.cli_notify(quiet=True)  # ночная копия: не подключён — ни ошибки, ни вывода
+    assert capsys.readouterr().out == ""

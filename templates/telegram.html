@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Telegram{% endblock %}
+{% block content %}
+<h1>Сводка в Telegram</h1>
+<p class="small muted">Раз в сутки, после ночной резервной копии, бот пришлёт, что на исходе (меньше 200 г), что пора сушить
+  и какое обслуживание принтера подошло — только если что-то изменилось с прошлого раза.</p>
+
+<h2 class="first">1. Бот</h2>
+{% if has_token %}<p>Подключён бот <b>@{{ bot or '?' }}</b>.</p>{% endif %}
+<ol class="small prose">
+  <li>В Telegram откройте <b>@BotFather</b> → <span class="ui-label">/newbot</span> → придумайте имя → он пришлёт токен.</li>
+  <li>Вставьте токен сюда.</li>
+</ol>
+<form method="post" class="weigh query">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <label class="grow">Токен бота{% if has_token %} (сохранён — вставьте новый, чтобы сменить){% endif %}
+    <input name="token" type="password" autocomplete="off" placeholder="123456789:AA…" required></label>
+  <button class="btn{{ '' if has_token else ' primary' }}" name="action" value="token">Сохранить</button>
+</form>
+
+{% if has_token %}
+<h2>2. Чат</h2>
+<p class="small muted">Откройте своего бота{% if bot %} (<a href="https://t.me/{{ bot }}" target="_blank" rel="noopener">t.me/{{ bot }}</a>){% endif %},
+  нажмите «Старт» (/start), затем — кнопку ниже.</p>
+<form method="post" class="actions">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <button class="btn{{ '' if has_chat else ' primary' }}" name="action" value="chat">Найти чат</button>
+  {% if has_chat %}<button class="btn primary" name="action" value="test">Отправить сводку сейчас</button>{% endif %}
+  <button class="btn danger" name="action" value="off" formnovalidate data-confirm="Отключить Telegram?" data-confirm-ok="Отключить" data-confirm-danger>Отключить</button>
+</form>
+{% if has_chat %}<p class="small ok-text">✓ Подключено — сводка будет приходить сама.</p>{% endif %}
+{% endif %}
+{% endblock %}

@@ -115,13 +115,14 @@ def telegram(text):
         return False
 
 
-def cli_notify(force=False):
-    """Сводка: на исходе и пора сушить. Без --force шлёт, только если список изменился."""
-    with app.test_request_context(base_url=PUBLIC_URL):
-        spools = [spool_view(r) for r in get_db().execute("SELECT * FROM spools ORDER BY " + SORTS["number"])]
-        maint = [m for m in maintenance_status()[1] if m["due"]]
-    text = notify.digest(spools, NOTIFY_THRESHOLD, PUBLIC_URL, maint)
+def cli_notify(force=False, quiet=False):
+    """Сводка: на исходе и пора сушить. Без --force шлёт, только если список изменился.
+    --quiet (ночная копия): Telegram не подключён — молча ничего не делать."""
     cfg = load_config()
+    if quiet and not (cfg.get("telegram_token") and cfg.get("telegram_chat")):
+        return
+    with app.test_request_context(base_url=PUBLIC_URL):
+        text = digest_text(PUBLIC_URL)
     fp = notify.fingerprint(text)
     if not force and fp == cfg.get("notify_last"):
         print("Без изменений — не отправляю.")
