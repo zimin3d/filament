@@ -9,7 +9,7 @@
   <span class="tpl{{ ' on' if tpl.id == template_id else '' }}">
     <a href="{{ url_for('spool_new', template=tpl.id) }}">{{ tpl.name }}</a>
     <form method="post" action="{{ url_for('template_delete', template_id=tpl.id) }}" class="inline"
-          data-confirm="Удалить шаблон «{{ tpl.name }}»?">
+          data-confirm="Удалить шаблон «{{ tpl.name }}»?" data-confirm-ok="Удалить" data-confirm-danger>
       <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linkbtn" title="Удалить шаблон">✕</button>
     </form>
   </span>

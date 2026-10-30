@@ -4,14 +4,67 @@
 // img[data-drop-broken], .nav-toggle, .pw-toggle, <div id="spool-left" data-left="…"> на странице катушки.
 document.documentElement.classList.remove("no-js");
 (function () {
+  // подтверждение: своё окно <dialog id="confirm-dialog"> — только для отправки формы и где браузер это умеет;
+  // иначе (старый браузер, кнопка без формы, не кнопка отправки) — системный confirm(), как раньше.
+  // Текст «Да»: data-confirm-ok, красная кнопка — data-confirm-danger. Отправляем той же кнопкой (submitter),
+  // иначе потеряются её name/value (action=delete и т.п.).
+  var dlg = null, confirmed = null;
+  function dialogReady() {  // окно есть и разметка цела — иначе системный confirm(), чтобы кнопки не «молчали»
+    dlg = dlg || document.getElementById("confirm-dialog");
+    return !!(dlg && dlg.showModal && HTMLFormElement.prototype.requestSubmit && dlg.querySelector(".dlg-text") &&
+              dlg.querySelector("[value=ok]") && dlg.querySelector("[value=cancel]"));
+  }
+  function ask(src, form, submitter) {
+    dlg.querySelector(".dlg-text").textContent = src.dataset.confirm;
+    var ok = dlg.querySelector("[value=ok]");
+    ok.textContent = src.dataset.confirmOk || "Да";
+    ok.className = "btn " + (src.hasAttribute("data-confirm-danger") ? "danger solid" : "primary");
+    dlg.onclose = function () {
+      if (dlg.returnValue !== "ok") return;
+      confirmed = form;  // обработчик submit срабатывает внутри requestSubmit — сразу и снимаем
+      try { form.requestSubmit(submitter || undefined); } finally { confirmed = null; }
+    };
+    dlg.returnValue = "";
+    dlg.showModal();
+    dlg.querySelector("[value=cancel]").focus();
+  }
+
   document.addEventListener("submit", function (e) {
-    var msg = e.target.dataset && e.target.dataset.confirm;
-    if (msg && !confirm(msg)) e.preventDefault();
+    var form = e.target;
+    if (!form.dataset || !form.dataset.confirm || confirmed === form) return;
+    if (dialogReady()) { e.preventDefault(); ask(form, form, e.submitter); }
+    else if (!confirm(form.dataset.confirm)) e.preventDefault();
   });
 
   document.addEventListener("click", function (e) {
     var el = e.target.closest && e.target.closest("button[data-confirm], input[data-confirm]");
-    if (el && !confirm(el.dataset.confirm)) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+    if (el) {
+      var submits = el.form && (el.type === "submit" || el.type === "image");
+      if (submits && dialogReady()) { e.preventDefault(); e.stopImmediatePropagation(); ask(el, el.form, el); }
+      else if (!confirm(el.dataset.confirm)) { e.preventDefault(); e.stopImmediatePropagation(); }
+      return;
+    }
+    var copy = e.target.closest("[data-copy]");
+    if (copy) {
+      var src = document.querySelector(copy.dataset.copy);
+      if (!src) return;
+      var label = copy.dataset.label || (copy.dataset.label = copy.textContent);
+      var show = function (text) {
+        copy.textContent = text;
+        clearTimeout(copy._t);
+        copy._t = setTimeout(function () { copy.textContent = label; }, 2500);
+      };
+      var selectIt = function () { getSelection().selectAllChildren(src); show("Выделено — скопируйте вручную"); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(src.textContent.trim()).then(function () { show("Скопировано ✓"); }, selectIt);
+      } else {  // нет буфера обмена (не https) — старый способ, пока жест нажатия ещё действует
+        getSelection().selectAllChildren(src);
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
+        show(ok ? "Скопировано ✓" : "Выделено — скопируйте вручную");
+      }
+      return;
+    }
     if (e.target.closest("[data-print]")) { window.print(); return; }
     var sel = e.target.closest("[data-select-all]");
     if (sel) { sel.select(); return; }

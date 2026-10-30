@@ -90,7 +90,7 @@
           <td class="nowrap small muted num">{{ '%.1f'|format(md.size / 1048576) }} МБ · {{ '{:,}'.format(md.triangles or 0).replace(',', ' ') }} треуг.</td>
           <td class="nowrap small muted num">{{ md.created_at[:10]|ru_date }}</td>
           {% if is_admin %}<td class="end"><form method="post" action="{{ url_for('model_delete', model_id=md.id) }}" class="inline"
-            data-confirm="Удалить модель?"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            data-confirm="Удалить модель?" data-confirm-ok="Удалить" data-confirm-danger><input type="hidden" name="csrf" value="{{ csrf_token() }}">
             <button class="linkbtn" title="Удалить модель">✕</button></form></td>{% endif %}</tr>
       {% endfor %}</tbody>
     </table></div>
@@ -103,7 +103,7 @@
         <a href="{{ url_for('uploaded', name=p.photo) }}" target="_blank"><img src="{{ url_for('thumb', name=p.photo) }}" alt="{{ p.caption }}" loading="lazy"></a>
         <figcaption>{{ p.caption }}<span class="muted small"> {{ p.created_at[:10]|ru_date }}</span>
           {% if is_admin %}
-          <form method="post" action="{{ url_for('print_delete', print_id=p.id) }}" class="inline" data-confirm="Удалить фото?">
+          <form method="post" action="{{ url_for('print_delete', print_id=p.id) }}" class="inline" data-confirm="Удалить фото?" data-confirm-ok="Удалить" data-confirm-danger>
             <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linkbtn" title="Удалить">✕</button>
           </form>{% endif %}
         </figcaption>
@@ -119,7 +119,7 @@
           <td class="n" data-label="граммы">{{ j.grams|grams if j.grams else '—' }}</td><td class="n" data-label="время">{{ j.minutes|duration }}</td>
           <td class="n" data-label="стоимость">{{ j.cost|money if j.cost else '—' }}</td>
           {% if is_admin %}<td class="end"><form method="post" action="{{ url_for('job_delete', job_id=j.id) }}" class="inline"
-              data-confirm="Удалить запись? Остаток не изменится."><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              data-confirm="Удалить запись? Остаток не изменится." data-confirm-ok="Удалить" data-confirm-danger><input type="hidden" name="csrf" value="{{ csrf_token() }}">
               <button class="linkbtn" title="Удалить запись">✕</button></form></td>{% endif %}</tr>
       {% endfor %}</tbody>
     </table></div>
@@ -191,7 +191,7 @@
     </div>
     <div class="actions danger-zone">
       <form method="post" action="{{ url_for('spool_delete', spool_id=s.id) }}" class="inline"
-            data-confirm="Удалить катушку безвозвратно?">
+            data-confirm="Удалить катушку безвозвратно?" data-confirm-ok="Удалить" data-confirm-danger>
         <input type="hidden" name="csrf" value="{{ csrf_token() }}">
         <button class="btn danger">{{ nav.icon('trash') }}Удалить</button>
       </form>

@@ -26,7 +26,7 @@
         <label style="flex: 1 1 100%">Заметка<input name="notes" value="{{ m.notes }}"></label>
         <button class="btn primary" name="action" value="save">Сохранить</button>
         <a class="btn ghost" href="{{ url_for('printer') }}">Отмена</a>
-        <button class="btn danger" name="action" value="delete" formnovalidate data-confirm="Удалить пункт?">Удалить</button>
+        <button class="btn danger" name="action" value="delete" formnovalidate data-confirm="Удалить пункт?" data-confirm-ok="Удалить" data-confirm-danger>Удалить</button>
       </form></td></tr>
   {% else %}
     <tr class="{{ 'row-error' if m.due else '' }}">

@@ -548,6 +548,15 @@ main.showcase { padding-bottom: 32px; }
 .presets .chip { min-height: 32px; padding: 0 10px; cursor: pointer; font-family: var(--font-num); }
 @media (pointer: coarse) { .presets .chip { min-height: 40px; } }
 
+dialog#confirm-dialog { border: 1px solid var(--border); border-radius: var(--r-xl); background: var(--surface-2); color: var(--text);
+  padding: 20px; width: min(360px, calc(100vw - 32px)); box-shadow: var(--shadow-2); }
+dialog#confirm-dialog::backdrop { background: var(--overlay); }
+dialog#confirm-dialog[open] { animation: dlg-in 160ms var(--ease-out); }
+@keyframes dlg-in { from { opacity: 0; transform: scale(.96); } }
+.dlg-text { font-size: 1rem; margin: 0 0 18px; overflow-wrap: anywhere; }
+.dlg-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.dlg-actions .btn { flex: 1 1 0; }
+
 /* --- разное по страницам --------------------------------------------------------------- */
 .login { max-width: 360px; margin: 40px auto; background: var(--surface); padding: 24px; border: 1px solid var(--border);
          border-radius: var(--r-xl); display: grid; gap: 14px; box-shadow: var(--shadow-2); }

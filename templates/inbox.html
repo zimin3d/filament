@@ -4,7 +4,7 @@
 <h1>Печати с принтера</h1>
 <p class="small muted">Многоцветные печати (или когда катушка «на принтере» не выбрана) ждут здесь: укажите, с каких катушек списать.</p>
 {% if not items %}<p class="empty">✓ Всё разобрано.</p>{% else %}
-<form method="post" class="inline" data-confirm="Пропустить все {{ items|length }}? Пластик не спишется.">
+<form method="post" class="inline" data-confirm="Пропустить все {{ items|length }}? Пластик не спишется." data-confirm-ok="Пропустить" data-confirm-danger>
   <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger" name="skip_all" value="1">Пропустить все ({{ items|length }})</button>
 </form>{% endif %}
 {% for it in items %}

@@ -41,6 +41,12 @@
 </div>
 </div>
 {{ nav.tabbar() }}
+<dialog id="confirm-dialog" aria-labelledby="confirm-text">
+  <form method="dialog">
+    <p class="dlg-text" id="confirm-text"></p>
+    <div class="dlg-actions"><button class="btn" value="cancel">Отмена</button><button class="btn primary" value="ok">Да</button></div>
+  </form>
+</dialog>
 {% if is_admin %}<script src="{{ url_for('static', filename='resize.js') }}" defer></script>
 <script src="{{ url_for('static', filename='slice.js') }}" defer></script>{% endif %}
 </body>

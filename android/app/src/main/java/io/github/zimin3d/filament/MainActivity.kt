@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
@@ -22,6 +23,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import java.io.File
@@ -71,6 +73,10 @@ class MainActivity : ComponentActivity() {
                 try { startActivity(Intent(Intent.ACTION_VIEW, request.url)) } catch (_: ActivityNotFoundException) {}
                 return true
             }
+
+            override fun onPageFinished(view: WebView, url: String?) {
+                if (url != null && url.startsWith("http://127.0.0.1")) matchSystemBars()
+            }
         }
         web.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>,
@@ -101,17 +107,64 @@ class MainActivity : ComponentActivity() {
         web.setDownloadListener { url, _, disposition, mime, _ -> download(url, disposition, mime) }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (web.canGoBack()) web.goBack() else finish()
+                // сначала закрыть открытое на странице: окно подтверждения или лист «Ещё»
+                web.evaluateJavascript(CLOSE_OVERLAY) { closed ->
+                    if (closed != "true") { if (web.canGoBack()) web.goBack() else finish() }
+                }
             }
         })
 
-        web.loadData("<p style='font:18px sans-serif;padding:2em;color:#666'>Запуск…</p>", "text/html; charset=utf-8", null)
+        setSystemBars(0x16, 0x19, 0x1E)  // до первой страницы — как экран «Запуск…» и тёмная тема по умолчанию
+        web.loadData("<body style='margin:0;background:#16191E'><p style='font:18px sans-serif;padding:2em;color:#A3AAB5'>Запуск…</p></body>", "text/html; charset=utf-8", null)
         thread {
             if (!Python.isStarted()) Python.start(AndroidPlatform(this))
             val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
             val url = Python.getInstance().getModule("launcher")
                 .callAttr("start", File(filesDir, "data").path, version).toString()
             runOnUiThread { web.loadUrl(url) }
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // тема «как в системе»: стили страницы пересчитаются сами, панели — по ним, чуть позже
+        if (web.url?.startsWith("http://127.0.0.1") == true) {
+            web.postDelayed({ matchSystemBars() }, 300)
+            web.postDelayed({ matchSystemBars() }, 1500)  // медленный телефон не успел пересчитать стили
+        }
+    }
+
+    companion object {
+        /** JS: закрыть окно подтверждения или лист «Ещё»; true — было что закрывать. */
+        private const val CLOSE_OVERLAY = "(function(){var d=document.getElementById('confirm-dialog');" +
+            "if(d&&d.open){d.close('cancel');return true}" +
+            "if(document.body.classList.contains('nav-open')){var t=document.querySelector('.nav-toggle');" +
+            "if(t)t.click();return true}return false})()"
+    }
+
+    /** Статус-бар и панель навигации — цветом шапки страницы (тема решается в CSS, здесь не дублируется). */
+    private fun matchSystemBars() {
+        web.evaluateJavascript(
+            "getComputedStyle(document.querySelector('.top') || document.body).backgroundColor"
+        ) { result ->
+            // "rgb(22, 25, 30)" или "rgba(0, 0, 0, 0)" — у прозрачного фона (страница ошибки) цвет не берём
+            val m = Regex("rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)(?:,\\s*([\\d.]+))?").find(result ?: "")
+                ?: return@evaluateJavascript
+            if ((m.groupValues[4].toDoubleOrNull() ?: 1.0) < 0.5) return@evaluateJavascript
+            setSystemBars(m.groupValues[1].toInt(), m.groupValues[2].toInt(), m.groupValues[3].toInt())
+        }
+    }
+
+    private fun setSystemBars(r: Int, g: Int, b: Int) {
+        val color = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+        val light = 0.299 * r + 0.587 * g + 0.114 * b > 150  // светлый фон — тёмные значки
+        @Suppress("DEPRECATION")
+        window.statusBarColor = color
+        @Suppress("DEPRECATION")
+        window.navigationBarColor = color
+        WindowCompat.getInsetsController(window, web).apply {
+            isAppearanceLightStatusBars = light
+            isAppearanceLightNavigationBars = light
         }
     }
 
