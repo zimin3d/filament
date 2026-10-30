@@ -24,6 +24,10 @@ class Moonraker(BaseHTTPRequestHandler):
                                           "display_status": {"progress": 0.42},
                                           "extruder": {"temperature": 219.6, "target": 220},
                                           "heater_bed": {"temperature": 60.1, "target": 60}}}}
+        elif self.path.startswith("/printer/objects/list"):
+            body = {"result": {"objects": ["print_stats", "box", "heater_bed", "filament_switch_sensor filament_sensor"]}}
+        elif self.path.startswith("/printer/info"):
+            body = {"result": {"state": "ready", "hostname": "K2"}}
         elif self.path.startswith("/server/history/list"):
             body = {"result": {"count": len(HISTORY), "jobs": HISTORY}}
         else:
@@ -73,3 +77,32 @@ def test_printer_link_offline_and_validation(admin):
     assert flashes(admin, r)[0][0] == "error"
     admin.post("/printer/link", data={"csrf": "t", "action": "save", "host": "127.0.0.1", "port": "1"})
     assert "нет связи" in admin.get("/printer/link").get_data(as_text=True)
+
+
+def test_printer_dump(admin, anon, printer):
+    """Снимок данных для разработчика: объекты, похожие на CFS, их состояние, без кода доступа."""
+    assert anon.get("/printer/dump").status_code == 302  # только админ
+    admin.post("/printer/link", data={"csrf": "t", "action": "save", "host": "127.0.0.1", "port": str(printer)})
+    assert "Снять данные принтера" in admin.get("/printer/link").get_data(as_text=True)
+    r = admin.get("/printer/dump")
+    assert r.status_code == 200 and "attachment; filename=printer-" in r.headers["Content-Disposition"]
+    d = r.get_json()
+    assert d["kind"] == "klipper" and d["printer_info"]["hostname"] == "K2" and "box" in d["objects"]
+    assert "status" in d and d["history"][0]["job_id"] == "000B"
+    # принтер выключен — снимок с текстом ошибки, а не 500
+    cfg = filament.load_config()
+    cfg["printer_port"] = 1
+    filament.save_config(cfg)
+    d = admin.get("/printer/dump").get_json()
+    assert "objects_error" in d and "status" not in d
+
+
+def test_printer_dump_bambu_has_no_access_code(admin, monkeypatch):
+    import sys
+    cfg = filament.load_config()
+    cfg.update(printer_kind="bambu", printer_host="127.0.0.1", bambu_serial="01P00A000000000", bambu_code="SECRET42")
+    filament.save_config(cfg)
+    monkeypatch.setattr(sys.modules["views.printer"], "bambu_report",
+                        lambda c: {"gcode_state": "IDLE", "ams": {"ams": [{"id": "0", "tray": []}]}})
+    r = admin.get("/printer/dump")
+    assert r.get_json()["report"]["gcode_state"] == "IDLE" and "SECRET42" not in r.get_data(as_text=True)

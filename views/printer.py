@@ -417,3 +417,38 @@ def printer_link():
             error = str(getattr(e, "reason", None) or e)
     return render_template("printer_link.html", cfg=cfg, live=live, error=error, spool=printer_spool(),
                            phone=PHONE)
+
+
+DUMP_OBJECTS = re.compile(r"box|cfs|filament|rfid|material|spool|feeder|buffer|extruder|print_stats|virtual_sdcard",
+                          re.I)
+
+
+@app.route("/printer/dump")
+@admin_required
+def printer_dump():
+    """Снимок данных принтера в файл — чтобы научить приложение новому (ячейки CFS у K2, отчёт Bambu).
+    Секретов в нём нет: код доступа Bambu не входит, у Moonraker — только состояние."""
+    import urllib.parse
+    cfg = load_config()
+    out = {"kind": cfg.get("printer_kind", "klipper"), "taken_at": time.strftime("%Y-%m-%d %H:%M"),
+           "app_version": os.environ.get("FILAMENT_APP_VERSION", "")}
+
+    def grab(key, fn):
+        try:
+            out[key] = fn()
+        except Exception as e:  # noqa: BLE001 — в снимок идёт текст ошибки, а не отказ целиком
+            out[key + "_error"] = str(getattr(e, "reason", None) or e)[:300]
+
+    if is_bambu(cfg):
+        grab("report", lambda: bambu_report(cfg))
+    else:
+        grab("printer_info", lambda: moonraker("/printer/info", cfg))
+        grab("objects", lambda: moonraker("/printer/objects/list", cfg).get("objects") or [])
+        names = [o for o in out.get("objects") or [] if isinstance(o, str) and DUMP_OBJECTS.search(o)][:80]
+        if names:
+            grab("status", lambda: moonraker("/printer/objects/query?" +
+                                             "&".join(urllib.parse.quote(n) for n in names), cfg).get("status"))
+        grab("history", lambda: moonraker("/server/history/list?limit=3&order=desc", cfg).get("jobs"))
+    resp = app.response_class(json.dumps(out, ensure_ascii=False, indent=1, default=str), mimetype="application/json")
+    resp.headers["Content-Disposition"] = "attachment; filename=printer-%s.json" % time.strftime("%Y%m%d-%H%M")
+    return resp
