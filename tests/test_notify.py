@@ -68,3 +68,10 @@ def test_notify_quiet_without_telegram(capsys):
     import cli
     cli.cli_notify(quiet=True)  # ночная копия: не подключён — ни ошибки, ни вывода
     assert capsys.readouterr().out == ""
+
+
+def test_fingerprint_ignores_link_addresses():
+    import notify
+    a = '<a href="http://192.168.1.5/spool/1">№1 PLA</a> — 50 г'
+    b = '<a href="https://example.com/filament/spool/1">№1 PLA</a> — 50 г'
+    assert notify.fingerprint(a) == notify.fingerprint(b) != notify.fingerprint(b.replace("50", "40"))

@@ -243,5 +243,5 @@ def test_conflict_names_deleted_spool():
     a.execute("INSERT INTO spools (manufacturer, material, color_name, number) VALUES ('X', 'PLA', 'синий', '9')")
     sid_uid = a.execute("SELECT uid FROM spools").fetchone()[0]
     assert sync.describe(a, "spools", "f" * 32, {"number": "4", "material": "PETG", "color_name": "белый"}) \
-        == "№4 PETG белый (удалена здесь)"
-    assert sync.describe(a, "usage", "e" * 32, {"spool_id": sid_uid}) == "№9 PLA синий — расход"
+        == "№4 PETG белый (удалена на сервере)"
+    assert sync.describe(a, "usage", "e" * 32, {"spool_id": sid_uid}) == "№9 PLA синий — расход (удалена на сервере)"

@@ -177,27 +177,24 @@ LABELS = {"spools": "катушка", "usage": "расход", "jobs": "печа
           "inbox": "печать с принтера"}
 
 
-def describe(db, t, uid, row=None, _cols={}):
-    """Человеческое имя строки для списка конфликтов: «№12 PETG красный — расход».
-    Строки здесь уже нет (удалили) — берём данные из row, присланной другим устройством."""
+def describe(db, t, uid, row=None):
+    """Человеческое имя строки для списка конфликтов на телефоне: «№12 PETG красный — расход».
+    Вызывается на сервере; строки здесь уже нет (удалили) — имя из row, присланной телефоном."""
     def name(r):
         return " ".join(filter(None, ["№" + str(r[0]) if r[0] else "", r[1], r[2]]))
-    if t not in _cols:
-        _cols[t] = {r[1] for r in db.execute("PRAGMA table_info(%s)" % t)}
+    gone = " (удалена на сервере)"
     row = row if isinstance(row, dict) else {}
     if t == "spools":
         r = db.execute("SELECT number, material, color_name FROM spools WHERE uid = ?", (uid,)).fetchone()
-        if r:
-            return name(r)
-        return (name((row.get("number"), row.get("material"), row.get("color_name"))) or "катушка") + " (удалена здесь)"
-    if "spool_id" in _cols[t]:
+        return name(r) if r else (name((row.get("number"), row.get("material"), row.get("color_name"))) or "катушка") + gone
+    if "spool_id" in {c[1] for c in db.execute("PRAGMA table_info(%s)" % t)}:
         r = db.execute("SELECT s.number, s.material, s.color_name FROM %s x JOIN spools s ON s.id = x.spool_id "
                        "WHERE x.uid = ?" % t, (uid,)).fetchone()
-        if r is None and row.get("spool_id"):  # строки нет — катушку ищем по uid из присланной строки
-            r = db.execute("SELECT number, material, color_name FROM spools WHERE uid = ?",
-                           (str(row["spool_id"]),)).fetchone()
         if r:
             return "%s — %s" % (name(r), LABELS.get(t, t))
+        spool = db.execute("SELECT number, material, color_name FROM spools WHERE uid = ?",
+                           (str(row.get("spool_id") or ""),)).fetchone()
+        return ("%s — %s" % (name(spool), LABELS.get(t, t)) if spool else LABELS.get(t, t)) + gone
     return LABELS.get(t, t)
 
 

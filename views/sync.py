@@ -159,6 +159,12 @@ def _run_sync(transport):
     got, _ = sync.apply(db, resp.get("changes") or [], log=False)
     sync.set_state(db, "server_seq", int(resp["seq"]))
     sync.set_state(db, "local_seq", local_mark)
+    at = time.strftime("%Y-%m-%d %H:%M")
+    conflicts = [str(c)[:120] for c in resp.get("conflicts") or [] if isinstance(c, str)][:30]
+    if conflicts:  # копятся, пока не нажмут «Понятно»; пишем вместе с отметками — до файлов, сеть может оборваться
+        old = json.loads(sync.state(db, "conflicts", "[]"))
+        sync.set_state(db, "conflicts", json.dumps((old + [{"at": at, "what": c} for c in conflicts])[-60:],
+                                                   ensure_ascii=False))
     db.commit()
     sent_files = got_files = 0
     for name in resp.get("need") or []:
@@ -178,12 +184,7 @@ def _run_sync(transport):
         os.replace(tmp, os.path.join(UPLOAD_DIR, name))
         got_files += 1
     result = {"sent": len(mine), "received": got, "sent_files": sent_files, "got_files": got_files,
-              "at": time.strftime("%Y-%m-%d %H:%M"),
-              "conflicts": [str(c)[:120] for c in resp.get("conflicts") or [] if isinstance(c, str)][:30]}
-    if result["conflicts"]:  # копятся, пока не нажмут «Понятно» — автосинхронизация раз в 15 мин их не сотрёт
-        old = json.loads(sync.state(db, "conflicts", "[]"))
-        sync.set_state(db, "conflicts", json.dumps(
-            (old + [{"at": result["at"], "what": c} for c in result["conflicts"]])[-60:], ensure_ascii=False))
+              "at": at, "conflicts": conflicts}
     sync.set_state(db, "last_result", json.dumps(result))
     db.commit()
     return result
@@ -246,8 +247,12 @@ def sync_page():
             except (OSError, ValueError, KeyError) as e:
                 flash("Не удалось: %s" % (getattr(e, "reason", None) or e), "error")
         elif PHONE and action == "dismiss":
-            db.execute("DELETE FROM sync_state WHERE k = 'conflicts'")
-            db.commit()
+            if _running.acquire(timeout=SYNC_TIMEOUT * 2):  # не посреди автосинхронизации (она дописывает список)
+                try:
+                    db.execute("DELETE FROM sync_state WHERE k = 'conflicts'")
+                    db.commit()
+                finally:
+                    _running.release()
         elif PHONE and action == "update":
             try:
                 upd = check_app_update()

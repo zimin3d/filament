@@ -221,7 +221,7 @@ def cli_set_telegram():
         me = notify.call(token, "getMe")
         print("Бот: @%s. Откройте его в Telegram и отправьте /start, затем нажмите Enter." % me["username"])
         input()
-        chat, who, bot = notify.connect(token)
+        chat, who, bot = notify.connect(token, me["username"])
     except notify.NotifyError as e:
         sys.exit(str(e))
     cfg = load_config()

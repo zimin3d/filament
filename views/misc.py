@@ -113,33 +113,25 @@ def telegram_page():
     if request.method == "POST":
         action = request.form.get("action")
 
-        def store(**kw):  # после сетевых вызовов — поверх свежего config, чтобы не затереть чужие правки
-            fresh = load_config(fresh=True)
-            for k, v in kw.items():
-                if v is None:
-                    fresh.pop(k, None)
-                else:
-                    fresh[k] = v
-            save_config(fresh)
         try:
             if action == "token":
                 token = request.form.get("token", "").strip()
                 if not re.fullmatch(r"\d{5,12}:[A-Za-z0-9_-]{30,60}", token):
                     raise notify.NotifyError("Это не похоже на токен бота: его выдаёт @BotFather, вида 123456789:AA…")
                 bot = notify.call(token, "getMe").get("username", "")
-                store(telegram_token=token, telegram_bot=bot, telegram_chat=None, notify_last=None)
+                update_config(telegram_token=token, telegram_bot=bot, telegram_chat=None, notify_last=None)
                 flash("Бот @%s подключён. Откройте его в Telegram, отправьте /start и нажмите «Найти чат»." % bot, "ok")
             elif action == "chat" and cfg.get("telegram_token"):
-                chat, who, bot = notify.connect(cfg["telegram_token"])
-                store(telegram_chat=chat, telegram_bot=bot, notify_last=None)
+                chat, who, bot = notify.connect(cfg["telegram_token"], cfg.get("telegram_bot"))
+                update_config(telegram_chat=chat, telegram_bot=bot, notify_last=None)
                 flash("Готово: сообщения пойдут в чат %s." % (who or chat), "ok")
             elif action == "test" and cfg.get("telegram_chat"):
                 text = digest_text(request.url_root)
                 notify.send(cfg["telegram_token"], cfg["telegram_chat"], text or notify.ALL_GOOD)
-                store(notify_last=notify.fingerprint(text))  # ночью то же самое второй раз не придёт
+                update_config(notify_last=notify.fingerprint(text))  # ночью то же самое второй раз не придёт
                 flash("Сводка отправлена.", "ok")
             elif action == "off":
-                store(telegram_token=None, telegram_chat=None, telegram_bot=None, notify_last=None)
+                update_config(telegram_token=None, telegram_chat=None, telegram_bot=None, notify_last=None)
                 flash("Telegram отключён.", "ok")
         except notify.NotifyError as e:
             flash(str(e), "error")

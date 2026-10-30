@@ -215,6 +215,19 @@ def load_config(fresh=False):
     return cfg
 
 
+def update_config(**changes):
+    """Правка config поверх свежего с диска (после долгих сетевых вызовов не затирает чужие правки).
+    None — удалить ключ. Возвращает сохранённый config."""
+    cfg = load_config(fresh=True)
+    for k, v in changes.items():
+        if v is None:
+            cfg.pop(k, None)
+        else:
+            cfg[k] = v
+    save_config(cfg)
+    return cfg
+
+
 def save_config(cfg):
     os.makedirs(DATA_DIR, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=DATA_DIR, prefix=".config-")  # 0600, своё имя — без гонок

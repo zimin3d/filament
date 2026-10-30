@@ -330,9 +330,7 @@ def poll_printer():
         r = accept_printer_job(payload)
         if r.get("ok") and not r.get("duplicate"):
             auto, pending = auto + bool(r.get("auto")), pending + (not r.get("auto"))
-    cfg = load_config(fresh=True)
-    cfg["printer_checked"] = time.strftime("%Y-%m-%d %H:%M")
-    save_config(cfg)
+    update_config(printer_checked=time.strftime("%Y-%m-%d %H:%M"))
     return auto, pending
 
 
@@ -366,12 +364,9 @@ def poll_bambu(cfg):
             if r.get("ok") and not r.get("duplicate"):
                 auto, pending = auto + bool(r.get("auto")), pending + (not r.get("auto"))
         job["done"] = True
-    cfg = load_config(fresh=True)
-    if cfg.get("printer_host") != host:  # пока ждали принтер, его сменили — эта печать не его
+    if load_config(fresh=True).get("printer_host") != host:  # пока ждали принтер, его сменили — печать не его
         return auto, pending
-    cfg["bambu_job"] = job
-    cfg["printer_checked"] = time.strftime("%Y-%m-%d %H:%M")
-    save_config(cfg)
+    update_config(bambu_job=job, printer_checked=time.strftime("%Y-%m-%d %H:%M"))
     return auto, pending
 
 

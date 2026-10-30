@@ -48,9 +48,10 @@ def find_chat(token):
 ALL_GOOD = "Всё в порядке: катушек на исходе нет, сушить нечего, обслуживание принтера не нужно."
 
 
-def connect(token):
-    """Чат последнего, кто написал боту /start: проверка и приветствие. -> (chat_id, кто, имя бота)."""
-    bot = call(token, "getMe").get("username", "")
+def connect(token, bot=None):
+    """Чат последнего, кто написал боту /start: проверка и приветствие. -> (chat_id, кто, имя бота).
+    bot — имя, если уже известно (без лишнего запроса getMe)."""
+    bot = bot or call(token, "getMe").get("username", "")
     chat, who = find_chat(token)
     send(token, chat, "✅ Уведомления учёта филамента подключены.")
     return chat, who, bot
@@ -81,4 +82,6 @@ def digest(spools, threshold, base_url, maintenance=()):
 
 
 def fingerprint(text):
-    return hashlib.sha1((text or "").encode()).hexdigest()[:16]
+    """Отпечаток сводки без адресов ссылок: та же сводка с другим адресом сайта — то же самое."""
+    import re
+    return hashlib.sha1(re.sub(r'href="[^"]*"', "", text or "").encode()).hexdigest()[:16]
