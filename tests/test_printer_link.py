@@ -20,12 +20,15 @@ HISTORY = [  # новые сверху, как отдаёт Moonraker
 class Moonraker(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/printer/objects/query"):
+            Moonraker.last_query = self.path
             body = {"result": {"status": {"print_stats": {"state": "printing", "filename": "cube.gcode", "print_duration": 600},
                                           "display_status": {"progress": 0.42},
                                           "extruder": {"temperature": 219.6, "target": 220},
                                           "heater_bed": {"temperature": 60.1, "target": 60}}}}
         elif self.path.startswith("/printer/objects/list"):
-            body = {"result": {"objects": ["print_stats", "box", "heater_bed", "filament_switch_sensor filament_sensor"]}}
+            body = {"result": {"objects": ["print_stats", "gcode_macro BOX_LOAD", "box", "heater_bed",
+                                           "filament_switch_sensor filament_sensor"]}}
+            Moonraker.objects_seen = True
         elif self.path.startswith("/printer/info"):
             body = {"result": {"state": "ready", "hostname": "K2"}}
         elif self.path.startswith("/server/history/list"):
@@ -89,6 +92,7 @@ def test_printer_dump(admin, anon, printer):
     d = r.get_json()
     assert d["kind"] == "klipper" and d["printer_info"]["hostname"] == "K2" and "box" in d["objects"]
     assert "status" in d and d["history"][0]["job_id"] == "000B"
+    assert "box" in Moonraker.last_query and "gcode_macro" not in Moonraker.last_query  # макросы не запрашиваем
     # принтер выключен — снимок с текстом ошибки, а не 500
     cfg = filament.load_config()
     cfg["printer_port"] = 1

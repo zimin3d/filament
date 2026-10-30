@@ -45,6 +45,17 @@ def find_chat(token):
     raise NotifyError("Боту ещё никто не писал — откройте бота в Telegram и отправьте /start.")
 
 
+ALL_GOOD = "Всё в порядке: катушек на исходе нет, сушить нечего, обслуживание принтера не нужно."
+
+
+def connect(token):
+    """Чат последнего, кто написал боту /start: проверка и приветствие. -> (chat_id, кто, имя бота)."""
+    bot = call(token, "getMe").get("username", "")
+    chat, who = find_chat(token)
+    send(token, chat, "✅ Уведомления учёта филамента подключены.")
+    return chat, who, bot
+
+
 def esc(text):
     return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 

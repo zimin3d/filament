@@ -102,7 +102,7 @@ def apply(db, changes, newer_after=None, log=True, conflicts=None):
     """Применяет изменения с другого устройства. newer_after (на сервере) — seq, который телефон уже видел:
     строку, изменённую здесь позже этого и позже, чем на телефоне, не трогаем.
     log=False (на телефоне) — применённое не попадает в журнал, чтобы не уйти обратно.
-    conflicts — список, куда добавить (таблица, uid) строк, где победило изменение здесь.
+    conflicts — список, куда добавить (таблица, uid, строка с другого устройства), где победило изменение здесь.
     Возвращает (применено, пропущено)."""
     order = {t: i for i, t in enumerate(TABLES)}
     done = skipped = 0
@@ -124,7 +124,7 @@ def apply(db, changes, newer_after=None, log=True, conflicts=None):
                 if mine and mine[0] > ts:
                     skipped += 1
                     if conflicts is not None:
-                        conflicts.append((t, uid))
+                        conflicts.append((t, uid, row))
                     continue
             if c.get("del"):
                 db.execute("DELETE FROM %s WHERE uid = ?" % t, (uid,))
@@ -177,16 +177,27 @@ LABELS = {"spools": "катушка", "usage": "расход", "jobs": "печа
           "inbox": "печать с принтера"}
 
 
-def describe(db, t, uid):
-    """Человеческое имя строки для списка конфликтов: «№12 PETG красный — расход»."""
-    cols = {r[1] for r in db.execute("PRAGMA table_info(%s)" % t)}
-    if t == "spools" or "spool_id" in cols:
-        sql = ("SELECT number, material, color_name FROM spools WHERE uid = ?" if t == "spools" else
-               "SELECT s.number, s.material, s.color_name FROM %s x JOIN spools s ON s.id = x.spool_id WHERE x.uid = ?" % t)
-        r = db.execute(sql, (uid,)).fetchone()
+def describe(db, t, uid, row=None, _cols={}):
+    """Человеческое имя строки для списка конфликтов: «№12 PETG красный — расход».
+    Строки здесь уже нет (удалили) — берём данные из row, присланной другим устройством."""
+    def name(r):
+        return " ".join(filter(None, ["№" + str(r[0]) if r[0] else "", r[1], r[2]]))
+    if t not in _cols:
+        _cols[t] = {r[1] for r in db.execute("PRAGMA table_info(%s)" % t)}
+    row = row if isinstance(row, dict) else {}
+    if t == "spools":
+        r = db.execute("SELECT number, material, color_name FROM spools WHERE uid = ?", (uid,)).fetchone()
         if r:
-            name = " ".join(filter(None, ["№" + r[0] if r[0] else "", r[1], r[2]]))
-            return name if t == "spools" else "%s — %s" % (name, LABELS.get(t, t))
+            return name(r)
+        return (name((row.get("number"), row.get("material"), row.get("color_name"))) or "катушка") + " (удалена здесь)"
+    if "spool_id" in _cols[t]:
+        r = db.execute("SELECT s.number, s.material, s.color_name FROM %s x JOIN spools s ON s.id = x.spool_id "
+                       "WHERE x.uid = ?" % t, (uid,)).fetchone()
+        if r is None and row.get("spool_id"):  # строки нет — катушку ищем по uid из присланной строки
+            r = db.execute("SELECT number, material, color_name FROM spools WHERE uid = ?",
+                           (str(row["spool_id"]),)).fetchone()
+        if r:
+            return "%s — %s" % (name(r), LABELS.get(t, t))
     return LABELS.get(t, t)
 
 

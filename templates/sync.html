@@ -23,9 +23,12 @@
   на сервер и забирает чужие; если одну катушку меняли и там, и там — остаётся более позднее изменение.
   Журнал изменений у каждого устройства свой.</p>
 {% if last %}<p>Последняя: {{ last.at }}. {{ summary(last) }}</p>
-{% if last.conflicts %}<div class="alert-box conflicts">Эти правки с телефона не применены — ту же запись на сервере изменили позже,
+{% endif %}
+{% if conflicts %}<div class="alert-box conflicts">Эти правки с телефона не применены — ту же запись на сервере изменили позже,
   осталась серверная версия. Проверьте и при необходимости поправьте ещё раз:
-  <ul>{% for c in last.conflicts %}<li>{{ c }}</li>{% endfor %}</ul></div>{% endif %}{% endif %}
+  <ul>{% for c in conflicts %}<li><span class="num t2">{{ c.at }}</span> · {{ c.what }}</li>{% endfor %}</ul>
+  <form method="post"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button class="btn sm" name="action" value="dismiss">Понятно</button></form></div>{% endif %}
 <p>Не отправлено изменений: <b class="num">{{ pending }}</b></p>
 <form method="post" class="actions">
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">

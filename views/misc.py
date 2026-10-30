@@ -112,35 +112,37 @@ def telegram_page():
     cfg = load_config()
     if request.method == "POST":
         action = request.form.get("action")
+
+        def store(**kw):  # после сетевых вызовов — поверх свежего config, чтобы не затереть чужие правки
+            fresh = load_config(fresh=True)
+            for k, v in kw.items():
+                if v is None:
+                    fresh.pop(k, None)
+                else:
+                    fresh[k] = v
+            save_config(fresh)
         try:
             if action == "token":
                 token = request.form.get("token", "").strip()
                 if not re.fullmatch(r"\d{5,12}:[A-Za-z0-9_-]{30,60}", token):
                     raise notify.NotifyError("Это не похоже на токен бота: его выдаёт @BotFather, вида 123456789:AA…")
-                me = notify.call(token, "getMe")
-                cfg.update(telegram_token=token, telegram_bot=me.get("username", ""))
-                cfg.pop("telegram_chat", None)
-                save_config(cfg)
-                flash("Бот @%s подключён. Откройте его в Telegram, отправьте /start и нажмите «Найти чат»."
-                      % cfg["telegram_bot"], "ok")
+                bot = notify.call(token, "getMe").get("username", "")
+                store(telegram_token=token, telegram_bot=bot, telegram_chat=None, notify_last=None)
+                flash("Бот @%s подключён. Откройте его в Telegram, отправьте /start и нажмите «Найти чат»." % bot, "ok")
             elif action == "chat" and cfg.get("telegram_token"):
-                chat, who = notify.find_chat(cfg["telegram_token"])
-                notify.send(cfg["telegram_token"], chat, "✅ Уведомления учёта филамента подключены.")
-                cfg.update(telegram_chat=chat)
-                save_config(cfg)
+                chat, who, bot = notify.connect(cfg["telegram_token"])
+                store(telegram_chat=chat, telegram_bot=bot, notify_last=None)
                 flash("Готово: сообщения пойдут в чат %s." % (who or chat), "ok")
             elif action == "test" and cfg.get("telegram_chat"):
                 text = digest_text(request.url_root)
-                notify.send(cfg["telegram_token"], cfg["telegram_chat"],
-                            text or "Всё в порядке: катушек на исходе нет, сушить нечего, обслуживание не нужно.")
+                notify.send(cfg["telegram_token"], cfg["telegram_chat"], text or notify.ALL_GOOD)
+                store(notify_last=notify.fingerprint(text))  # ночью то же самое второй раз не придёт
                 flash("Сводка отправлена.", "ok")
             elif action == "off":
-                for k in ("telegram_token", "telegram_chat", "telegram_bot", "notify_last"):
-                    cfg.pop(k, None)
-                save_config(cfg)
+                store(telegram_token=None, telegram_chat=None, telegram_bot=None, notify_last=None)
                 flash("Telegram отключён.", "ok")
         except notify.NotifyError as e:
             flash(str(e), "error")
         return redirect(url_for("telegram_page"))
     return render_template("telegram.html", bot=cfg.get("telegram_bot"), has_token=bool(cfg.get("telegram_token")),
-                           has_chat=bool(cfg.get("telegram_chat")))
+                           has_chat=bool(cfg.get("telegram_chat")), threshold=NOTIFY_THRESHOLD)

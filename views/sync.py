@@ -73,8 +73,13 @@ def api_sync():
     lost = []
     done, skipped = sync.apply(db, [c for c in changes if isinstance(c, dict)], newer_after=after, conflicts=lost)
     db.commit()
-    # правки телефона, которые проиграли более поздним на сервере — телефон покажет их списком
-    conflicts = sorted({sync.describe(db, t, u) for t, u in lost})[:30]
+    # правки телефона, которые проиграли более поздним на сервере — телефон покажет их списком.
+    # Одна строка — один пункт (по uid, не по тексту: две «PETG красный» — две записи); не больше 30.
+    seen, conflicts = set(), []
+    for t, u, row in lost:
+        if (t, u) not in seen and len(conflicts) < 30:
+            seen.add((t, u))
+            conflicts.append(sync.describe(db, t, u, row))
     need = sorted(f for f in set(files) & sync.referenced_files(db) if not os.path.exists(os.path.join(UPLOAD_DIR, f)))
     return jsonify(ok=True, seq=sync.last_seq(db), changes=sync.export(db, after), need=need,
                    applied=done, skipped=skipped, conflicts=conflicts)
@@ -175,6 +180,10 @@ def _run_sync(transport):
     result = {"sent": len(mine), "received": got, "sent_files": sent_files, "got_files": got_files,
               "at": time.strftime("%Y-%m-%d %H:%M"),
               "conflicts": [str(c)[:120] for c in resp.get("conflicts") or [] if isinstance(c, str)][:30]}
+    if result["conflicts"]:  # копятся, пока не нажмут «Понятно» — автосинхронизация раз в 15 мин их не сотрёт
+        old = json.loads(sync.state(db, "conflicts", "[]"))
+        sync.set_state(db, "conflicts", json.dumps(
+            (old + [{"at": result["at"], "what": c} for c in result["conflicts"]])[-60:], ensure_ascii=False))
     sync.set_state(db, "last_result", json.dumps(result))
     db.commit()
     return result
@@ -236,6 +245,9 @@ def sync_page():
                 flash("Синхронизировано. " + sync_summary(run_sync()), "ok")
             except (OSError, ValueError, KeyError) as e:
                 flash("Не удалось: %s" % (getattr(e, "reason", None) or e), "error")
+        elif PHONE and action == "dismiss":
+            db.execute("DELETE FROM sync_state WHERE k = 'conflicts'")
+            db.commit()
         elif PHONE and action == "update":
             try:
                 upd = check_app_update()
@@ -263,4 +275,4 @@ def render_sync(db, cfg, update=None):
                            has_token=bool(cfg.get("sync_token")), token=None,
                            pending=db.execute("SELECT COUNT(*) FROM sync_log WHERE seq > ?",
                                               (int(sync.state(db, "local_seq", 0)),)).fetchone()[0],
-                           summary=sync_summary)
+                           summary=sync_summary, conflicts=json.loads(sync.state(db, "conflicts", "[]")))

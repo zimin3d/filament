@@ -54,8 +54,10 @@ def test_telegram_page(admin, anon, monkeypatch):
     assert filament.load_config()["telegram_bot"] == "filament_bot"
     admin.post("/telegram", data={"csrf": "t", "action": "chat"})
     assert filament.load_config()["telegram_chat"] == 42
+    assert "notify_last" not in filament.load_config()  # новый чат — первая ночная сводка придёт
     admin.post("/telegram", data={"csrf": "t", "action": "test"})
     assert calls[-1][0] == "sendMessage" and calls[-1][1]["chat_id"] == 42
+    assert filament.load_config().get("notify_last")  # отправленное сейчас ночью не повторится
     html = admin.get("/telegram").get_data(as_text=True)
     assert "@filament_bot" in html and token not in html  # токен на страницу не выводится
     admin.post("/telegram", data={"csrf": "t", "action": "off"})

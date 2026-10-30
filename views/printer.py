@@ -444,7 +444,9 @@ def printer_dump():
     else:
         grab("printer_info", lambda: moonraker("/printer/info", cfg))
         grab("objects", lambda: moonraker("/printer/objects/list", cfg).get("objects") or [])
-        names = [o for o in out.get("objects") or [] if isinstance(o, str) and DUMP_OBJECTS.search(o)][:80]
+        # макросы (gcode_macro BOX_…, LOAD_FILAMENT) тоже совпадают — их в запрос не берём, чтобы не вытеснили объекты
+        names = [o for o in out.get("objects") or [] if isinstance(o, str) and DUMP_OBJECTS.search(o)
+                 and not o.startswith(("gcode_macro", "gcode_button", "gcode_shell_command"))][:120]
         if names:
             grab("status", lambda: moonraker("/printer/objects/query?" +
                                              "&".join(urllib.parse.quote(n) for n in names), cfg).get("status"))

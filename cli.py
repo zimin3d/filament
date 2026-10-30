@@ -132,7 +132,7 @@ def cli_notify(force=False, quiet=False):
         save_config(cfg)
         print("Сообщать нечего.")
         return
-    if telegram(text or "Всё в порядке: катушек на исходе нет, сушить нечего."):
+    if telegram(text or notify.ALL_GOOD):
         cfg = load_config()
         cfg["notify_last"] = fp
         save_config(cfg)
@@ -221,11 +221,11 @@ def cli_set_telegram():
         me = notify.call(token, "getMe")
         print("Бот: @%s. Откройте его в Telegram и отправьте /start, затем нажмите Enter." % me["username"])
         input()
-        chat, who = notify.find_chat(token)
-        notify.send(token, chat, "✅ Уведомления учёта филамента подключены.")
+        chat, who, bot = notify.connect(token)
     except notify.NotifyError as e:
         sys.exit(str(e))
     cfg = load_config()
-    cfg.update(telegram_token=token, telegram_chat=chat)
+    cfg.update(telegram_token=token, telegram_chat=chat, telegram_bot=bot)
+    cfg.pop("notify_last", None)  # новый чат — первая сводка придёт, даже если список не менялся
     save_config(cfg)
     print("Готово, уведомления пойдут в чат %s (%s)." % (chat, who))

@@ -126,7 +126,7 @@ def test_engine_fk_by_uid_update_delete_conflict():
     lost = []
     assert sync.apply(a, changes, newer_after=seen, conflicts=lost) == (0, 1)
     assert a.execute("SELECT color_name FROM spools").fetchone()[0] == "green"
-    assert [sync.describe(a, t, u) for t, u in lost] == ["PETG green"]
+    assert [sync.describe(a, t, u, r) for t, u, r in lost] == ["PETG green"]
     a.execute("UPDATE spools SET number = '12'")
     a.execute("INSERT INTO usage (spool_id, day, used, left_after) VALUES (1, '2026-10-02', 5, 695)")
     uid = a.execute("SELECT uid FROM usage").fetchone()[0]
@@ -232,3 +232,16 @@ def test_phone_sees_lost_edits(admin, db, phone):
     with phone.use():
         assert sqlite3.connect(phone.paths["DB_PATH"]).execute("SELECT color_name FROM spools").fetchone()[0] == "бордовый"
         assert "Не применено с телефона" in filament.views.sync.sync_summary(r)
+    # следующая (авто)синхронизация без конфликтов список не стирает — только «Понятно»
+    assert phone.run()["conflicts"] == []
+    with phone.use(), filament.app.test_request_context():
+        assert [c["what"] for c in json.loads(sync.state(filament.get_db(), "conflicts", "[]"))] == ["№5 PETG бордовый"]
+
+
+def test_conflict_names_deleted_spool():
+    a = mem_db()
+    a.execute("INSERT INTO spools (manufacturer, material, color_name, number) VALUES ('X', 'PLA', 'синий', '9')")
+    sid_uid = a.execute("SELECT uid FROM spools").fetchone()[0]
+    assert sync.describe(a, "spools", "f" * 32, {"number": "4", "material": "PETG", "color_name": "белый"}) \
+        == "№4 PETG белый (удалена здесь)"
+    assert sync.describe(a, "usage", "e" * 32, {"spool_id": sid_uid}) == "№9 PLA синий — расход"
