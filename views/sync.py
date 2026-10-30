@@ -253,6 +253,8 @@ def sync_page():
                     db.commit()
                 finally:
                     _running.release()
+            else:
+                flash("Идёт синхронизация — нажмите «Понятно» ещё раз через минуту.", "error")
         elif PHONE and action == "update":
             try:
                 upd = check_app_update()
