@@ -123,8 +123,15 @@ def test_engine_fk_by_uid_update_delete_conflict():
     a.execute("UPDATE spools SET color_name = 'green'")
     changes = [c for c in sync.export(b, 0) if c["t"] == "spools" and c.get("row", {}).get("color_name") == "blue"]
     changes[0]["ts"] -= 1
-    assert sync.apply(a, changes, newer_after=seen) == (0, 1)
+    lost = []
+    assert sync.apply(a, changes, newer_after=seen, conflicts=lost) == (0, 1)
     assert a.execute("SELECT color_name FROM spools").fetchone()[0] == "green"
+    assert [sync.describe(a, t, u) for t, u in lost] == ["PETG green"]
+    a.execute("UPDATE spools SET number = '12'")
+    a.execute("INSERT INTO usage (spool_id, day, used, left_after) VALUES (1, '2026-10-02', 5, 695)")
+    uid = a.execute("SELECT uid FROM usage").fetchone()[0]
+    assert sync.describe(a, "usage", uid) == "№12 PETG green — расход"
+    assert sync.describe(a, "profiles", "0" * 32) == "настройки печати"
 
 
 def test_phone_roundtrip(admin, db, phone):
@@ -205,3 +212,23 @@ def test_app_update_check(monkeypatch):
 def test_app_update_install_outside_app(admin):
     r = admin.get("/app-update/install?url=x")
     assert r.status_code == 302 and r.location.endswith("/sync")
+
+
+def test_phone_sees_lost_edits(admin, db, phone):
+    """Одну катушку правили и на телефоне, и (позже) на сервере — телефон показывает, что его правка не прошла."""
+    import time
+    add_spool(admin, number="5", color_name="красный")
+    phone.run()
+    with phone.use():
+        pdb = sqlite3.connect(phone.paths["DB_PATH"])
+        pdb.execute("UPDATE spools SET color_name = 'алый'")
+        pdb.commit()
+    time.sleep(0.05)
+    db.execute("UPDATE spools SET color_name = 'бордовый'")
+    db.commit()
+    r = phone.run()
+    assert r["conflicts"] == ["№5 PETG бордовый"]
+    assert db.execute("SELECT color_name FROM spools").fetchone()[0] == "бордовый"
+    with phone.use():
+        assert sqlite3.connect(phone.paths["DB_PATH"]).execute("SELECT color_name FROM spools").fetchone()[0] == "бордовый"
+        assert "Не применено с телефона" in filament.views.sync.sync_summary(r)

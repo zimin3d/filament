@@ -70,11 +70,14 @@ def api_sync():
     except (TypeError, ValueError):
         return jsonify(ok=False, error="неверный запрос"), 400
     db = get_db()
-    done, skipped = sync.apply(db, [c for c in changes if isinstance(c, dict)], newer_after=after)
+    lost = []
+    done, skipped = sync.apply(db, [c for c in changes if isinstance(c, dict)], newer_after=after, conflicts=lost)
     db.commit()
+    # правки телефона, которые проиграли более поздним на сервере — телефон покажет их списком
+    conflicts = sorted({sync.describe(db, t, u) for t, u in lost})[:30]
     need = sorted(f for f in set(files) & sync.referenced_files(db) if not os.path.exists(os.path.join(UPLOAD_DIR, f)))
     return jsonify(ok=True, seq=sync.last_seq(db), changes=sync.export(db, after), need=need,
-                   applied=done, skipped=skipped)
+                   applied=done, skipped=skipped, conflicts=conflicts)
 
 
 @app.route("/api/sync/file/<name>", methods=["GET", "PUT"])
@@ -170,15 +173,19 @@ def _run_sync(transport):
         os.replace(tmp, os.path.join(UPLOAD_DIR, name))
         got_files += 1
     result = {"sent": len(mine), "received": got, "sent_files": sent_files, "got_files": got_files,
-              "at": time.strftime("%Y-%m-%d %H:%M")}
+              "at": time.strftime("%Y-%m-%d %H:%M"),
+              "conflicts": [str(c)[:120] for c in resp.get("conflicts") or [] if isinstance(c, str)][:30]}
     sync.set_state(db, "last_result", json.dumps(result))
     db.commit()
     return result
 
 
 def sync_summary(r):
-    return "Отправлено изменений: %d, получено: %d, фото/файлов: ↑%d ↓%d." % (
+    text = "Отправлено изменений: %d, получено: %d, фото/файлов: ↑%d ↓%d." % (
         r["sent"], r["received"], r["sent_files"], r["got_files"])
+    if r.get("conflicts"):
+        text += " Не применено с телефона (на сервере изменили позже): %d." % len(r["conflicts"])
+    return text
 
 
 # --- страницы ---------------------------------------------------------------
