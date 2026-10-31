@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="description" content="Учёт катушек филамента для 3D-печати: остатки, расход, печати, принтер.">
 <meta name="color-scheme" content="{{ {'light': 'light', 'system': 'light dark'}.get(theme, 'dark') }}">
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 {% if theme == 'system' %}<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -28,7 +29,7 @@
   {% else %}<a class="brand" href="{{ url_for('index') }}">{{ nav.icon('spool', 'ic logo') }}<span class="brand-text">Филамент</span></a>{% endif %}
   <div class="top-actions">
     <a class="btn icon desk-only" href="{{ url_for('scan') }}" title="Сканировать QR этикетки" aria-label="Сканер">{{ nav.icon('scan') }}</a>
-    {% if is_admin and nav.section == 'spools' %}<a class="btn primary top-add" href="{{ url_for('spool_new') }}" aria-label="Новая катушка">{{ nav.icon('plus') }}<span class="desk-only">Катушка</span></a>{% endif %}
+    {% if is_admin and nav.section == 'spools' and request.endpoint not in ('spool_new', 'spool_edit') %}<a class="btn primary icon top-add" href="{{ url_for('spool_new') }}" aria-label="Новая катушка" title="Новая катушка">{{ nav.icon('plus') }}</a>{% endif %}
   </div>
 </header>
 {{ nav.subnav() }}

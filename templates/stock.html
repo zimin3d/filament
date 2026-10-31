@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Остатки и закупка{% endblock %}
 {% block content %}
+{% import "_nav.html" as nav with context %}
 <h1>Остатки и закупка</h1>
 <h2 class="first">По материалам</h2>
 <div class="table-wrap">
@@ -11,7 +12,7 @@
     <tr>
       <td class="primary"><a href="{{ url_for('index', material=m.material) }}"><b>{{ m.material }}</b></a></td>
       <td class="n" data-label="катушек">{{ m.count }}</td>
-      <td class="n" data-label="остаток">{{ (m.left / 1000)|round(2) }} кг</td>
+      <td class="n" data-label="остаток">{{ m.left|kg }} кг</td>
       <td class="n" data-label="стоимость">{{ m.value|money }}</td>
       <td class="n muted" data-label="закончились">{{ m.empty or '' }}</td>
     </tr>
@@ -69,7 +70,7 @@
       <td class="n {{ 'err' if s.weight_left < threshold / 2 else 'warn' }}" data-label="остаток">{{ s.weight_left|grams }}</td>
       <td>{% if s.reordered %}<span class="muted">✓ уже заказана</span>{% else %}{% if s.purchase_url %}<a href="{{ s.purchase_url }}" target="_blank" rel="noopener noreferrer">купить</a> {% endif %}{% if s.price %}<span class="muted">{{ s.price|money }}</span>{% endif %}{% if s.prices and not s.prices.is_cheapest %}<div class="small muted">дешевле: {{ s.prices.cheapest_mf }}, {{ s.prices.cheapest|money }}/кг</div>{% endif %}
         {% if is_admin %}<form method="post" action="{{ url_for('spool_reorder', spool_id=s.id) }}" class="inline">
-          <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linkbtn accent">🛒 заказал</button></form>{% endif %}{% endif %}</td>
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linkbtn accent">{{ nav.icon('cart', 'ic xs') }} заказал</button></form>{% endif %}{% endif %}</td>
     </tr>
   {% endfor %}
   </tbody>

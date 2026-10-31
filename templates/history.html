@@ -2,7 +2,7 @@
 {% block title %}Журнал изменений{% endblock %}
 {% block content %}
 <h1>Журнал изменений</h1>
-<p class="small muted">{% if spool %}Одна катушка · <a href="{{ url_for('history') }}">все</a> · {% endif %}Отменить можно последнее действие с каждой катушкой; отмена удаления возвращает катушку со всей историей и фото.</p>
+<p class="small muted">{% if spool %}Показана одна катушка (<a href="{{ url_for('history') }}">показать все</a>). {% endif %}Отменить можно последнее действие с каждой катушкой; отмена удаления возвращает катушку со всей историей и фото.</p>
 {% if not entries %}<p class="empty">Пока пусто.</p>{% else %}
 <div class="table-wrap">
 <table class="tbl stack">

@@ -3,6 +3,7 @@
 // Разметка: data-confirm="…" (форма или кнопка), data-autosubmit, data-print, data-select-all,
 // img[data-drop-broken], .nav-toggle, .pw-toggle, <div id="spool-left" data-left="…"> на странице катушки.
 document.documentElement.classList.remove("no-js");
+document.documentElement.classList.add("js");  // скрытое «до скрипта» (лист «Ещё») прячется только под .js
 (function () {
   // подтверждение: своё окно <dialog id="confirm-dialog"> — только для отправки формы и где браузер это умеет;
   // иначе (старый браузер, кнопка без формы, не кнопка отправки) — системный confirm(), как раньше.
@@ -84,7 +85,6 @@ document.documentElement.classList.remove("no-js");
       i.type = s ? "text" : "password";
       pw.setAttribute("aria-pressed", s);
       pw.setAttribute("aria-label", s ? "Скрыть пароль" : "Показать пароль");
-      pw.textContent = s ? "🙈" : "👁";
       i.focus();
     }
   });
@@ -136,11 +136,23 @@ document.documentElement.classList.remove("no-js");
       }
     }
 
+    // фильтры списка на телефоне свёрнуты, если ничего не выбрано (без JS и на компьютере — открыты)
+    if (window.matchMedia) {
+      var narrow = matchMedia("(max-width: 899px)");
+      var fitFilters = function () {  // шире телефона кнопки «Фильтры» нет — значит, открыты всегда
+        document.querySelectorAll("details[data-collapse-phone]").forEach(function (d) {
+          if (!narrow.matches) d.open = true;
+          else if (!d.hasAttribute("data-active")) d.open = false;
+        });
+      };
+      fitFilters();
+      if (narrow.addEventListener) narrow.addEventListener("change", fitFilters);
+    }
     // подвкладки раздела: активная — в видимой части строки
     var cur = document.querySelector(".subnav [aria-current]");
     if (cur && cur.scrollIntoView) cur.scrollIntoView({ inline: "center", block: "nearest" });
 
     var sw = document.body && document.body.dataset.sw;
-    if (sw && "serviceWorker" in navigator) navigator.serviceWorker.register(sw);
+    if (sw && "serviceWorker" in navigator) navigator.serviceWorker.register(sw).catch(function () {});  // нет — работаем без офлайна
   }
 })();

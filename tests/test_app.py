@@ -235,7 +235,7 @@ def test_import_guess_and_run(admin, db):
     assert rows["16"]["price"] == 983 and rows["16"]["color_hex"] == "#1a1a1a"
     assert rows["19"]["manufacturer"] == "Не указан"
     assert rows["19"]["alert"] == "НЕ ЛЕЗЕТ" and "салатовый" in rows["19"]["notes"]
-    assert "⚠ НЕ ЛЕЗЕТ" in admin.get("/").get_data(as_text=True)
+    assert '#i-alert"/></svg> НЕ ЛЕЗЕТ' in admin.get("/").get_data(as_text=True)  # значок, не эмодзи
     # повторный импорт — ничего нового
     token, html = upload(admin, SHEET)
     assert "Импортировать: новых 0" in html
@@ -414,7 +414,7 @@ def test_reorder_and_arrive(admin, db):
     sid = add_spool(admin, number="3", purchase_url="https://ozon.ru/x",
                     photo=(jpeg(), "a.jpg"))
     admin.post("/spool/%d/use" % sid, data={"csrf": "t", "grams": "950"})
-    assert "🛒 заказал" in admin.get("/stock").get_data(as_text=True)
+    assert '#i-cart"/></svg> заказал' in admin.get("/stock").get_data(as_text=True)
     r = admin.post("/spool/%d/reorder" % sid, data={"csrf": "t"})
     new = int(r.location.rsplit("/", 1)[1])
     row = db.execute("SELECT * FROM spools WHERE id = ?", (new,)).fetchone()
@@ -558,7 +558,7 @@ def test_fill_table(admin, db):
 def test_bulk_edit(admin, db):
     a, b, c = add_spool(admin, number="1"), add_spool(admin, number="2"), add_spool(admin, number="3")
     html = admin.get("/").get_data(as_text=True)
-    assert 'name="ids" value="%d"' % a in html and "☑ Выбрать" in html
+    assert 'name="ids" value="%d"' % a in html and "#i-check\"/></svg>Выбрать" in html
     r = admin.post("/bulk", data={"csrf": "t", "action": "location", "value": "Сухобокс", "ids": [a, b]})
     assert "изменено катушек: 2 из 2" in flashes(admin, r)[0][1]
     admin.post("/bulk", data={"csrf": "t", "action": "opened", "ids": [a, b]})
@@ -572,7 +572,7 @@ def test_bulk_edit(admin, db):
     eid = db.execute("SELECT MAX(id) FROM audit WHERE spool_id = ?", (b,)).fetchone()[0]
     admin.post("/history", data={"csrf": "t", "id": eid})  # отмена «вскрыты» у одной
     assert db.execute("SELECT opened_date FROM spools WHERE id = ?", (b,)).fetchone()[0] is None
-    assert "☑ Выбрать" not in filament.app.test_client().get("/").get_data(as_text=True)
+    assert "#i-check\"/></svg>Выбрать" not in filament.app.test_client().get("/").get_data(as_text=True)
 
 
 def test_enough(admin, anon, db):
@@ -671,7 +671,7 @@ def test_over_limit_needs_confirmation(admin, db):
     db.execute("UPDATE spools SET weight_left = 100 WHERE id = ?", (sid,))
     db.commit()
     html = admin.get("/spool/%d" % sid).get_data(as_text=True)
-    assert "всё равно записать" in html and html.count("⚠ не лезет в CFS") >= 2  # и у формы печати
+    assert "всё равно записать" in html and html.count('#i-alert"/></svg> не лезет в CFS') >= 2  # и у формы печати
     r = admin.post("/spool/%d/use" % sid, data={"csrf": "t", "grams": "150"})
     assert any("по учёту 100 г" in m for _, m in flashes(admin, r))
     r = admin.post("/spool/%d/prints" % sid, data={"csrf": "t", "grams": "150", "caption": "X"})
@@ -772,7 +772,7 @@ def test_thermal_labels(admin, anon):
     svg = re.search(r"<svg class=\"qr\".*?</svg>", both, re.S).group(0)
     assert 'shape-rendering="crispEdges"' in svg and "id=" not in svg  # без дублей id
     assert anon.get("/s/%d" % a).location.endswith("/spool/%d" % a)
-    assert "🖨 Этикетка" in admin.get("/spool/%d" % a).get_data(as_text=True)
+    assert '#i-printer"/></svg>Этикетка' in admin.get("/spool/%d" % a).get_data(as_text=True)
     assert 'id="pick-labels"' in admin.get("/").get_data(as_text=True)
 
 

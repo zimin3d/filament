@@ -11,12 +11,12 @@
     {% else %}<div class="nophoto" title="нет фото"><span class="spool-art" style="--sw: {{ s.swatch }}" aria-hidden="true"></span></div>{% endif %}
   </div>
     <h1><span class="swatch big" style="background: {{ s.swatch }}"></span>{{ s.color_name or 'Без названия' }}{% if s.number %} <span class="num-tag inline">№{{ s.number }}</span>{% endif %}</h1>
-    <p class="sub">{{ s.manufacturer }} · <b>{{ s.material }}</b> · <span class="num">{{ s.diameter }}</span> мм · <span class="pill status-{{ s.status }}">{{ s.status_label }}</span></p>
+    <p class="sub meta"><span>{{ s.manufacturer }}</span><span><b>{{ s.material }}</b></span><span class="num">{{ s.diameter }} мм</span><span class="pill status-{{ s.status }}">{{ s.status_label }}</span></p>
 
-    {% if s.alert %}<div class="alert-box">⚠ {{ s.alert }}</div>{% endif %}
+    {% if s.alert %}<div class="alert-box">{{ nav.icon('alert', 'ic xs') }} {{ s.alert }}</div>{% endif %}
     <div class="left-big">{{ s.weight_left|grams }}</div>
     <div class="bar big"{% if s.percent_left < 10 %} data-level="low"{% elif s.percent_left < 25 %} data-level="mid"{% endif %}><span style="width: {{ s.percent_left }}%"></span></div>
-    <p class="small muted num">из {{ s.weight_total|grams }} · {{ s.percent_left }}%{% if s.meters_left %} · {{ s.meters_left|meters }}{% endif %}</p>
+    <p class="small muted num meta"><span>из {{ s.weight_total|grams }}</span><span>{{ s.percent_left }}%</span>{% if s.meters_left %}<span>{{ s.meters_left|meters }}</span>{% endif %}</p>
     {% if is_admin %}
     <div id="spool-left" data-left="{{ s.weight_left }}" hidden></div>
     <form class="weigh hero" id="weigh" method="post" action="{{ url_for('spool_weigh', spool_id=s.id) }}">
@@ -129,7 +129,7 @@
     <summary>{{ nav.icon('plus') }}Записать печать</summary>
     <form class="weigh js-resize" method="post" enctype="multipart/form-data" action="{{ url_for('print_add', spool_id=s.id) }}">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      {% if s.alert %}<div class="alert-box" style="flex-basis: 100%; margin: 0">⚠ {{ s.alert }}</div>{% endif %}
+      {% if s.alert %}<div class="alert-box" style="flex-basis: 100%; margin: 0">{{ nav.icon('alert', 'ic xs') }} {{ s.alert }}</div>{% endif %}
       <label class="check over-confirm"><input type="checkbox" name="confirm_over" value="1">всё равно записать (больше остатка)</label>
       <label style="flex: 1 1 100%">Файл слайсера (.gcode / .3mf) — граммы и время подставятся сами
         <input type="file" class="slice-file" accept=".gcode,.3mf,.gco,.bgcode" data-url="{{ url_for('slice_parse', spool_id=s.id) }}">
@@ -160,7 +160,8 @@
     </table></div>
     {% endif %}
 
-    <h2>Настройки печати {% if profile %}<span class="small muted">— {{ profile.material }}{% if profile.manufacturer %}, {{ profile.manufacturer }}{% endif %}</span>{% endif %}</h2>
+    <h2>Настройки печати</h2>
+    {% if profile %}<p class="small muted">Для {{ profile.material }}{% if profile.manufacturer %}, {{ profile.manufacturer }}{% endif %}</p>{% endif %}
     {% if profile %}
     <dl class="kv">
       {% for k, label in profile_fields if profile[k] %}<dt>{{ label }}</dt><dd>{{ profile[k] }}</dd>{% endfor %}
@@ -184,9 +185,9 @@
       <a class="btn" href="{{ url_for('spool_new', copy=s.id) }}">Добавить такую же</a>
       <form method="post" action="{{ url_for('template_save', spool_id=s.id) }}" class="inline">
         <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <button class="btn" title="Сохранить как шаблон для быстрого добавления таких же покупок">★ В шаблоны</button>
+        <button class="btn" title="Сохранить как шаблон для быстрого добавления таких же покупок">{{ nav.icon('star') }}В шаблоны</button>
       </form>
-      <a class="btn" href="{{ url_for('labels', id=s.id, print=1) }}">🖨 Этикетка</a>
+      <a class="btn" href="{{ url_for('labels', id=s.id, print=1) }}">{{ nav.icon('printer') }}Этикетка</a>
       <a class="btn" href="{{ url_for('history', spool=s.id) }}">{{ nav.icon('history') }}Журнал</a>
     </div>
     <div class="actions danger-zone">

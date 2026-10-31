@@ -505,6 +505,13 @@ def grams(value):
     return "{:,.0f} г".format(value).replace(",", " ")
 
 
+@app.template_filter("kg")
+def kg(grams_value):
+    """Граммы → «59,04» (кг, русская запятая, без хвостовых нулей до одного знака)."""
+    text = "{:.2f}".format((grams_value or 0) / 1000).rstrip("0")
+    return (text + "0" if text.endswith(".") else text).replace(".", ",")
+
+
 @app.template_filter("field_num")
 def field_num(value, default=""):
     """Число для поля формы: 1000.0 -> "1000", пусто/нет -> default."""

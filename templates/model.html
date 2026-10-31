@@ -6,8 +6,8 @@
 <p class="small muted">
   <a href="{{ url_for('spool_detail', spool_id=m.spool_id) }}#models"><span class="swatch" style="background: {{ m.color_hex }}"></span>
     {% if m.number %}№{{ m.number }} {% endif %}{{ m.material }} {{ m.color_name }}</a>
-  · <span class="num">{{ '%.1f'|format(m.size / 1048576) }}</span> МБ · <a href="{{ url_for('uploaded', name=m.file) }}" download="{{ m.name }}">скачать</a>
 </p>
+<p class="small muted meta"><span class="num">{{ '%.1f'|format(m.size / 1048576) }} МБ</span><a href="{{ url_for('uploaded', name=m.file) }}" download="{{ m.name }}">скачать</a></p>
 {% else %}
 <h1>Просмотр STL</h1>
 <p class="small muted">Файл открывается прямо в браузере и никуда не загружается.</p>

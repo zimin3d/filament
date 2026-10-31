@@ -43,7 +43,7 @@ def test_upload_view_delete(admin, anon, db):
     page = anon.get("/model/%d" % rows[0]["id"]).get_data(as_text=True)
     assert 'class="stl-view"' in page and "vendor/three/three.min.js" in page and rows[0]["file"] in page
     assert anon.get("/uploads/" + rows[0]["file"]).data == binary_stl(3)
-    assert "🧊" in admin.get("/jobs").get_data(as_text=True)
+    assert 'aria-label="3D-модель"' in admin.get("/jobs").get_data(as_text=True)
     admin.post("/models/%d/delete" % rows[0]["id"], data={"csrf": "t"})
     assert db.execute("SELECT COUNT(*) FROM models").fetchone()[0] == 1
     eid = db.execute("SELECT MAX(id) FROM audit").fetchone()[0]

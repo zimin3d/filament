@@ -5,7 +5,7 @@
 {% if not empty_page %}{{ nav.inbox_banner() }}{% endif %}
 <section class="stats">
   <div><span class="num">{{ stats.count }}</span><span class="lbl">катушек</span></div>
-  <div><span class="num">{{ (stats.weight_left / 1000)|round(2) }} <small>кг</small></span><span class="lbl">остаток</span></div>
+  <div><span class="num">{{ stats.weight_left|kg }} <small>кг</small></span><span class="lbl">остаток</span></div>
   <div><span class="num">{{ stats.value_left|money }}</span><span class="lbl">стоимость остатка</span></div>
   <div><span class="num">{{ stats.spent|money }}</span><span class="lbl">потрачено на покупку</span></div>
   {% if stats.needs_drying %}<div class="warn"><span class="num">{{ stats.needs_drying }}</span><span class="lbl">пора сушить</span></div>{% endif %}
@@ -23,6 +23,10 @@
 <form class="filters" method="get">
   {% if f.color %}<input type="hidden" name="color" value="{{ f.color }}">{% endif %}
   <input type="search" name="q" value="{{ f.q }}" placeholder="Поиск: №, цвет, производитель, заметки" enterkeyhint="search" aria-label="Поиск">
+  {% set n_filters = [f.material, f.manufacturer, f.location, f.color, (f.status != 'active' and not empty_page), f.sort != 'new']|select|list|length %}
+  <details class="filters-more" open data-collapse-phone{% if n_filters %} data-active{% endif %}>
+  <summary class="btn">{{ nav.icon('sliders') }}Фильтры{% if n_filters %} <span class="nav-badge">{{ n_filters }}</span>{% endif %}</summary>
+  <div class="filters-body">
   <select name="material" data-autosubmit aria-label="Тип">
     <option value="">Все типы</option>
     {% for m in used_materials %}<option {% if m == f.material %}selected{% endif %}>{{ m }}</option>{% endfor %}
@@ -50,10 +54,12 @@
     {% endfor %}
   </select>
   <button class="btn apply">Показать</button>
+  </div>
+  </details>
   {% if f.q or f.material or f.manufacturer or f.location or f.color or (f.status != 'active' and not empty_page) or f.sort != 'new' %}
   <a class="btn ghost" href="{{ url_for(list_endpoint) }}" title="Сбросить фильтры и сортировку">✕ Сбросить</a>{% endif %}
   <span class="list-tools">
-  {% if is_admin and spools %}<button type="button" class="btn" id="pick-toggle" title="Выбрать несколько катушек и изменить их разом">☑ Выбрать</button>{% endif %}
+  {% if is_admin and spools %}<button type="button" class="btn" id="pick-toggle" title="Выбрать несколько катушек и изменить их разом">{{ nav.icon('check') }}Выбрать</button>{% endif %}
   <a class="btn" href="{{ url_for('labels', **f) }}" title="Этикетки с QR-кодом для показанных катушек">Этикетки</a>
   <a class="btn" href="{{ url_for('export_csv', **f) }}" title="Скачать показанные катушки в CSV (Excel, Google Таблицы)">CSV</a>
   </span>
@@ -85,7 +91,7 @@
   <label id="bulk-value-wrap">Значение<input name="value" id="bulk-value" autocomplete="off" list="bulk-locs"></label>
   <datalist id="bulk-locs">{% for m in locations %}<option value="{{ m }}">{% endfor %}</datalist>
   <button class="btn primary">Применить</button>
-  <button type="button" class="btn" id="pick-labels" title="Этикетки выбранных катушек">🖨 Этикетки</button>
+  <button type="button" class="btn" id="pick-labels" title="Этикетки выбранных катушек">{{ nav.icon('printer') }}Этикетки</button>
   <button type="button" class="btn" id="pick-cancel">Отмена</button>
 </form>
 {% endif %}
@@ -103,10 +109,10 @@
     </div>
     <div class="body">
       <div class="title"><span class="swatch" style="background: {{ s.swatch }}"></span><span class="t">{{ s.color_name or 'Без названия' }}</span></div>
-      <div class="sub">{{ s.manufacturer }} · <b>{{ s.material }}</b> · <span class="num">{{ s.diameter }}</span> мм{% if s.location %}<br>{{ nav.icon('pin', 'ic xs') }} {{ s.location }}{% endif %}</div>
-      {% if s.alert %}<div class="alert-line" title="{{ s.alert }}">⚠ {{ s.alert }}</div>{% endif %}
+      <div class="sub"><span class="meta"><span>{{ s.manufacturer }}</span><span><b>{{ s.material }}</b></span><span class="num">{{ s.diameter }} мм</span></span>{% if s.location %}<span class="loc">{{ nav.icon('pin', 'ic xs') }} {{ s.location }}</span>{% endif %}</div>
+      {% if s.alert %}<div class="alert-line" title="{{ s.alert }}">{{ nav.icon('alert', 'ic xs') }} {{ s.alert }}</div>{% endif %}
       <div class="bar"{% if s.percent_left < 10 %} data-level="low"{% elif s.percent_left < 25 %} data-level="mid"{% endif %}><span style="width: {{ s.percent_left }}%"></span></div>
-      <div class="row small"><span class="num" title="{{ s.meters_left|meters }}"><b>{{ s.weight_left|grams }}</b> / {{ s.weight_total|grams }}</span><span class="num">{{ s.value_left|money }}</span></div>
+      <div class="row small"><span class="num nowrap" title="{{ s.meters_left|meters }}"><b>{{ s.weight_left|grams }}</b> / {{ s.weight_total|grams }}</span><span class="num nowrap">{{ s.value_left|money }}</span></div>
     </div>
   </a>
   </div>

@@ -27,7 +27,7 @@
     <tr><td>{{ s.number }}</td>
       <td class="primary"><a href="{{ url_for('spool_detail', spool_id=s.id) }}"><span class="swatch" style="background: {{ s.swatch }}"></span> {{ s.material }} {{ s.color_name }}</a>
         <span class="muted small">· {{ s.manufacturer }}{% if s.location %} · {{ nav.icon('pin', 'ic xs') }} {{ s.location }}{% endif %}</span>
-        {% if s.alert %}<div class="alert-line">⚠ {{ s.alert }}</div>{% endif %}</td>
+        {% if s.alert %}<div class="alert-line">{{ nav.icon('alert', 'ic xs') }} {{ s.alert }}</div>{% endif %}</td>
       <td class="n" data-label="остаток">{{ s.weight_left|grams }}<div class="small muted">{{ s.meters_left|meters }}</div></td><td class="n" data-label="останется">{{ s.after|grams }}</td>
       <td class="end"><span class="pill status-{{ s.status }}">{{ s.status_label }}</span></td></tr>
   {% endfor %}</tbody>

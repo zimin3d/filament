@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Галерея{% endblock %}
 {% block content %}
+{% import "_nav.html" as nav with context %}
 <h1>Галерея печатей и моделей</h1>
 <form class="filters" method="get">
   <input type="search" name="q" value="{{ f.q }}" placeholder="Поиск: название, цвет, №" enterkeyhint="search" aria-label="Поиск">
@@ -22,7 +23,7 @@
     {% else %}
       <a href="{{ url_for('model_view', model_id=it.id) }}" class="gal-model">
         <img src="{{ url_for('model_preview', model_id=it.id) }}" alt="" loading="lazy" data-drop-broken>
-        <span class="gal-badge">🧊 3D</span></a>
+        <span class="gal-badge">{{ nav.icon('box', 'ic xs') }} 3D</span></a>
     {% endif %}
     <figcaption>
       <div class="gal-title">{{ it.title or ('Фото' if it.kind == 'photo' else 'Модель') }}</div>

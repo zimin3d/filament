@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Подбор катушек в CFS{% endblock %}
 {% block content %}
+{% import "_nav.html" as nav with context %}
 <h1>Подбор катушек в CFS</h1>
 <p class="small muted">Загрузите файл слайсера (.3mf / .gcode) — цвета, материалы и граммы подставятся сами, или заполните вручную. Подбираются катушки с запасом остатка, близкие по цвету, без пометки «не лезет в CFS»; вскрытые — в первую очередь.</p>
 <form method="get" id="cfs-form" class="weigh query">
@@ -38,8 +39,8 @@
         {{ q.material or 'любой' }}{% if q.grams %} · {{ q.grams|grams }}{% endif %}</td>
       <td class="primary">{% if b %}<a href="{{ url_for('spool_detail', spool_id=b.id) }}"><span class="swatch big" style="background: {{ b.swatch }}"></span>
           {% if b.number %}№{{ b.number }} {% endif %}{{ b.material }} {{ b.color_name }}</a>
-          <div class="small muted">{{ b.manufacturer }} · {{ b.match }} · {{ b.status_label|lower }}</div>
-          {% if b.alert %}<div class="alert-line">⚠ {{ b.alert }}</div>{% endif %}
+          <div class="small muted meta"><span>{{ b.manufacturer }}</span><span>{{ b.match }}</span><span>{{ b.status_label|lower }}</span></div>
+          {% if b.alert %}<div class="alert-line">{{ nav.icon('alert', 'ic xs') }} {{ b.alert }}</div>{% endif %}
         {% else %}<span class="err">нет подходящей — не хватает остатка или материала</span>{% endif %}</td>
       <td class="n" data-label="остаток">{{ b.weight_left|grams if b else '' }}</td>
       <td class="small" data-label="где">{{ b.location if b else '' }}</td>
