@@ -191,7 +191,8 @@
       <a class="btn" href="{{ url_for('history', spool=s.id) }}">{{ nav.icon('history') }}Журнал</a>
       {% if phone %}{% set cfs_tag = creality_tag(s) %}
       {% if cfs_tag %}<a class="btn" href="{{ url_for('spool_nfc', spool_id=s.id, tag=cfs_tag) }}" title="Метка MIFARE Classic 1K для CFS Creality: тип, цвет, длина">{{ nav.icon('link') }}NFC-метка Creality</a>
-      {% else %}<span class="hint">NFC-метка Creality: тип «{{ s.material }}» принтер не знает</span>{% endif %}{% endif %}
+      {% else %}<span class="hint">NFC-метка Creality: тип «{{ s.material }}» принтер не знает</span>{% endif %}
+      <a class="btn" href="{{ url_for('nfc_read') }}" title="Протокол чтения метки: ключи, байты, расшифровка — можно скопировать или отправить">Считать NFC-метку</a>{% endif %}
     </div>
     <div class="actions danger-zone">
       <form method="post" action="{{ url_for('spool_delete', spool_id=s.id) }}" class="inline"

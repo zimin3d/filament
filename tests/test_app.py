@@ -937,3 +937,17 @@ def test_creality_nfc_tag(admin, monkeypatch):
     monkeypatch.setattr(logic, "PHONE", False)
     r = admin.get("/spool/%d/nfc?tag=x" % sid)
     assert r.status_code == 302 and ("error", "Метка записывается только из приложения на телефоне с NFC.") in flashes(admin, r)
+
+
+def test_nfc_read_buttons(admin, monkeypatch):
+    import sys
+    import logic
+    sid = add_spool(admin)
+    monkeypatch.setattr(logic, "PHONE", True)
+    monkeypatch.setattr(sys.modules["views.printer"], "PHONE", True)  # страница передаёт phone сама
+    assert 'href="/nfc-read"' in admin.get("/spool/%d" % sid).get_data(as_text=True)
+    assert 'href="/nfc-read"' in admin.get("/printer/link").get_data(as_text=True)
+    monkeypatch.setattr(logic, "PHONE", False)
+    assert 'href="/nfc-read"' not in admin.get("/spool/%d" % sid).get_data(as_text=True)
+    r = admin.get("/nfc-read")
+    assert r.status_code == 302 and ("error", "Метку читает приложение на телефоне с NFC.") in flashes(admin, r)

@@ -2,6 +2,9 @@ package io.github.zimin3d.filament
 
 import android.Manifest
 import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.nfc.Tag
 import android.nfc.NfcAdapter
 import android.provider.Settings
 import android.annotation.SuppressLint
@@ -71,7 +74,15 @@ class MainActivity : ComponentActivity() {
                         return true
                     }
                     if (request.url.path?.endsWith("/nfc") == true) {  // /spool/<id>/nfc?tag=… — метка Creality
-                        request.url.getQueryParameter("tag")?.let { writeCfsTag(it) }
+                        request.url.getQueryParameter("tag")?.let { payload ->
+                            nfcSession("Запись NFC-метки Creality") { tag ->
+                                StringBuilder().also { log -> CfsTag.write(tag, payload, log); log.appendLine("Итог: записано") }.toString()
+                            }
+                        }
+                        return true
+                    }
+                    if (request.url.path?.endsWith("/nfc-read") == true) {
+                        nfcSession("Чтение NFC-метки") { tag -> CfsTag.read(tag) }
                         return true
                     }
                     return false
@@ -175,8 +186,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Метка CFS: ждём, пока к телефону поднесут метку, пишем, показываем итог. */
-    private fun writeCfsTag(payload: String) {
+    /** NFC: ждём метку, выполняем action, протокол — в окно (скопировать / поделиться) и в files/nfc.log. */
+    private fun nfcSession(title: String, action: (Tag) -> String) {
         val nfc = NfcAdapter.getDefaultAdapter(this)
         if (nfc == null) {
             Toast.makeText(this, "В телефоне нет NFC", Toast.LENGTH_LONG).show(); return
@@ -186,20 +197,45 @@ class MainActivity : ComponentActivity() {
             try { startActivity(Intent(Settings.ACTION_NFC_SETTINGS)) } catch (_: ActivityNotFoundException) {}
             return
         }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("NFC-метка Creality")
-            .setMessage("Поднесите метку MIFARE Classic к задней крышке телефона и держите, пока не появится итог.")
+        val waiting = AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage("Поднесите метку к задней крышке телефона и держите, пока не появится результат (до нескольких секунд).")
             .setNegativeButton("Отмена") { _, _ -> nfc.disableReaderMode(this) }
             .setOnCancelListener { nfc.disableReaderMode(this) }
             .show()
         nfc.enableReaderMode(this, { tag ->
-            val error = try { CfsTag.write(tag, payload); null } catch (e: Exception) { e.message ?: "ошибка записи" }
+            val report = try { action(tag) } catch (e: Exception) { "Ошибка: ${e.message ?: e.javaClass.simpleName}" }
+            val stamped = "$title — ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}\n" +
+                "Приложение ${packageManager.getPackageInfo(packageName, 0).versionName}, Android ${android.os.Build.VERSION.RELEASE}, " +
+                "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}\n$report"
+            try { File(filesDir, "nfc.log").appendText(stamped + "\n\n") } catch (_: Exception) {}
             runOnUiThread {
                 nfc.disableReaderMode(this)
-                dialog.dismiss()
-                Toast.makeText(this, error?.let { "Не записано: $it" } ?: "Метка записана", Toast.LENGTH_LONG).show()
+                waiting.dismiss()
+                showReport(title, stamped)
             }
         }, NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK, null)
+    }
+
+    /** Протокол на экран: выделяемый текст, «Скопировать», «Поделиться» (Telegram и т.п.). */
+    private fun showReport(title: String, text: String) {
+        val view = android.widget.TextView(this).apply {
+            this.text = text; setTextIsSelectable(true); setPadding(48, 24, 48, 24); textSize = 12f
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(android.widget.ScrollView(this).apply { addView(view) })
+            .setPositiveButton("Поделиться") { _, _ ->
+                startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_TEXT, text), title))
+            }
+            .setNeutralButton("Скопировать") { _, _ ->
+                (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText(title, text))
+                Toast.makeText(this, "Скопировано", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Закрыть", null)
+            .show()
     }
 
     /** Выбор файла; для фото — ещё и камера. */

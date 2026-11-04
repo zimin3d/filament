@@ -153,6 +153,14 @@ def spool_nfc(spool_id):
     return redirect(url_for("spool_detail", spool_id=spool_id))
 
 
+@app.route("/nfc-read")
+@admin_required
+def nfc_read():
+    """Чтение метки — тоже только в приложении (оно перехватывает ссылку и показывает протокол)."""
+    flash("Метку читает приложение на телефоне с NFC.", "error")
+    return redirect(url_for("index"))
+
+
 @app.route("/spool/<int:spool_id>")
 def spool_detail(spool_id):
     row = get_db().execute("SELECT * FROM spools WHERE id = ?", (spool_id,)).fetchone()
