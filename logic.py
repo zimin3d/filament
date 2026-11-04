@@ -114,7 +114,12 @@ def filtered_spools(args):
     sort = args.get("sort", "new")
 
     where, params = [], []
-    if material:
+    if material.startswith("*"):  # «*PLA» — вся группа: PLA, PLA+, PLA silk, EN-PLA+…
+        mats = [r[0] for r in db.execute("SELECT DISTINCT material FROM spools")
+                if material_family(r[0]) == material[1:]] or [material]
+        where.append("material IN (%s)" % ", ".join("?" * len(mats)))
+        params += mats
+    elif material:
         where.append("material = ?")
         params.append(material)
     if location:
@@ -350,6 +355,19 @@ def base_material(material):
         if m in mat:
             return m
     return material
+
+
+def material_family(material):
+    """Основной тип для группировки в фильтре: «PLA+», «PLA silk» -> PLA; «CR-PETG» -> PETG."""
+    return base_material(material).rstrip("+")
+
+
+def material_groups(materials):
+    """[(тип, [материалы])] для <optgroup> в фильтре — по основному типу, по алфавиту."""
+    groups = {}
+    for m in materials:
+        groups.setdefault(material_family(m), []).append(m)
+    return sorted(groups.items())
 
 
 def price_comparison(spool):

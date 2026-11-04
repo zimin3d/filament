@@ -903,3 +903,18 @@ def test_tares_migration_from_manufacturer_only(tmp_path, monkeypatch):
         assert db.execute("SELECT manufacturer, size, weight, uid FROM tares").fetchall() == [("eSun", 1000, 215, "a1")]
         assert {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE tbl_name = 'tares' AND type = 'trigger'")} \
             == {"tares_sync_ins", "tares_sync_upd", "tares_sync_del"}
+
+
+def test_material_group_filter(admin):
+    """Фильтр по основному типу: «Все PLA» — PLA, PLA+, PLA silk; одиночный тип — без пункта «Все»."""
+    for mat, color in [("PLA", "a1"), ("PLA+", "a2"), ("PLA silk", "a3"), ("CR-PETG", "b1"), ("PETG", "b2"), ("TPU", "c1")]:
+        add_spool(admin, material=mat, color_name=color)
+    html = admin.get("/").get_data(as_text=True)
+    assert '<optgroup label="PLA">' in html and 'value="*PLA"' in html and 'value="*PETG"' in html
+    assert 'value="*TPU"' not in html  # один вариант — группа без «Все»
+    html = admin.get("/?material=*PLA").get_data(as_text=True)
+    assert all(c in html for c in ("a1", "a2", "a3")) and "b1" not in html and "c1" not in html
+    assert '<option value="*PLA" selected>' in html
+    html = admin.get("/?material=*PETG").get_data(as_text=True)
+    assert "b1" in html and "b2" in html and "a1" not in html
+    assert admin.get("/?material=*НЕТ").status_code == 200  # неизвестная группа — пустой список, не ошибка

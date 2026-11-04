@@ -52,7 +52,7 @@ def spool_list(empty_page):
         "index.html", spools=spools, stats=stats, manufacturers=manufacturers, empty_page=empty_page,
         no_spools=not db.execute("SELECT 1 FROM spools LIMIT 1").fetchone(),
         list_endpoint="empty_spools" if empty_page else "index",
-        used_materials=used_materials, locations=locations, f=f,
+        material_groups=material_groups(used_materials), locations=locations, f=f,
         palette=palette([spool_view(r) for r in db.execute("SELECT * FROM spools WHERE ordered = 0 AND weight_left > 0")]),
         bulk_actions=[(k, label) for k, label, _ in BULK_ACTIONS],
         bulk_kinds={k: kind for k, _, kind in BULK_ACTIONS})

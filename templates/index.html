@@ -29,7 +29,10 @@
   <div class="filters-body">
   <select name="material" data-autosubmit aria-label="Тип">
     <option value="">Все типы</option>
-    {% for m in used_materials %}<option {% if m == f.material %}selected{% endif %}>{{ m }}</option>{% endfor %}
+    {% for fam, mats in material_groups %}<optgroup label="{{ fam }}">
+      {% if mats|length > 1 %}<option value="*{{ fam }}" {% if f.material == '*' ~ fam %}selected{% endif %}>Все {{ fam }}</option>{% endif %}
+      {% for m in mats %}<option {% if m == f.material %}selected{% endif %}>{{ m }}</option>{% endfor %}
+    </optgroup>{% endfor %}
   </select>
   <select name="manufacturer" data-autosubmit aria-label="Производитель">
     <option value="">Все производители</option>
