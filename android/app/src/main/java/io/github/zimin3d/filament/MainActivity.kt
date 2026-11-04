@@ -1,6 +1,9 @@
 package io.github.zimin3d.filament
 
 import android.Manifest
+import android.app.AlertDialog
+import android.nfc.NfcAdapter
+import android.provider.Settings
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
@@ -65,6 +68,10 @@ class MainActivity : ComponentActivity() {
                 if (request.url.host == "127.0.0.1") {
                     if (request.url.path?.endsWith("/app-update/install") == true) {
                         request.url.getQueryParameter("url")?.let { openUpdate(it) }
+                        return true
+                    }
+                    if (request.url.path?.endsWith("/nfc") == true) {  // /spool/<id>/nfc?tag=… — метка Creality
+                        request.url.getQueryParameter("tag")?.let { writeCfsTag(it) }
                         return true
                     }
                     return false
@@ -166,6 +173,33 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightStatusBars = light
             isAppearanceLightNavigationBars = light
         }
+    }
+
+    /** Метка CFS: ждём, пока к телефону поднесут метку, пишем, показываем итог. */
+    private fun writeCfsTag(payload: String) {
+        val nfc = NfcAdapter.getDefaultAdapter(this)
+        if (nfc == null) {
+            Toast.makeText(this, "В телефоне нет NFC", Toast.LENGTH_LONG).show(); return
+        }
+        if (!nfc.isEnabled) {
+            Toast.makeText(this, "Включите NFC", Toast.LENGTH_LONG).show()
+            try { startActivity(Intent(Settings.ACTION_NFC_SETTINGS)) } catch (_: ActivityNotFoundException) {}
+            return
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("NFC-метка Creality")
+            .setMessage("Поднесите метку MIFARE Classic к задней крышке телефона и держите, пока не появится итог.")
+            .setNegativeButton("Отмена") { _, _ -> nfc.disableReaderMode(this) }
+            .setOnCancelListener { nfc.disableReaderMode(this) }
+            .show()
+        nfc.enableReaderMode(this, { tag ->
+            val error = try { CfsTag.write(tag, payload); null } catch (e: Exception) { e.message ?: "ошибка записи" }
+            runOnUiThread {
+                nfc.disableReaderMode(this)
+                dialog.dismiss()
+                Toast.makeText(this, error?.let { "Не записано: $it" } ?: "Метка записана", Toast.LENGTH_LONG).show()
+            }
+        }, NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK, null)
     }
 
     /** Выбор файла; для фото — ещё и камера. */

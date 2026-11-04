@@ -145,6 +145,14 @@ def fill():
     return render_template("fill.html", spools=spools, fields=FILL_FIELDS, only_gaps=only_gaps, locations=locations)
 
 
+@app.route("/spool/<int:spool_id>/nfc")
+@admin_required
+def spool_nfc(spool_id):
+    """Эту ссылку перехватывает приложение на телефоне (пишет метку по NFC). Сюда — только из браузера."""
+    flash("Метка записывается только из приложения на телефоне с NFC.", "error")
+    return redirect(url_for("spool_detail", spool_id=spool_id))
+
+
 @app.route("/spool/<int:spool_id>")
 def spool_detail(spool_id):
     row = get_db().execute("SELECT * FROM spools WHERE id = ?", (spool_id,)).fetchone()

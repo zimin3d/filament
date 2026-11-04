@@ -34,7 +34,8 @@ def inject_globals():
             "inbox_count": get_db().execute("SELECT COUNT(*) FROM inbox WHERE status = 'pending'").fetchone()[0]
             if is_admin() else 0, "materials": MATERIALS,
             "maint_due": sum(1 for m in maintenance_status()[1] if m["due"]) if is_admin() else 0,
-            "known_manufacturers": known_manufacturers, "known_locations": known_locations, "list_url": list_url}
+            "known_manufacturers": known_manufacturers, "known_locations": known_locations, "list_url": list_url,
+            "creality_tag": creality_tag}
 
 
 # --- страницы ---------------------------------------------------------------
@@ -368,6 +369,29 @@ def material_groups(materials):
     for m in materials:
         groups.setdefault(material_family(m), []).append(m)
     return sorted(groups.items())
+
+
+# Метки RFID Creality CFS (формат восстановлен сообществом: github.com/DnG-Crafts/K2-RFID).
+# ID материалов — «Generic …» из базы материалов Creality K2: принтер покажет тип и цвет, а не марку.
+CREALITY_MATERIAL_IDS = {"PLA": "00001", "PLA-SILK": "00002", "PETG": "00003", "ABS": "00004", "TPU": "00005",
+                         "PLA-CF": "00006", "ASA": "00007", "PA": "00008", "PA-CF": "00009", "PVA": "00011",
+                         "HIPS": "00012", "PETG-CF": "00014", "PP": "00019", "PET": "00020", "PC": "00021",
+                         "PCTG": "00032"}
+
+
+def creality_tag(spool):
+    """48 символов для сектора 1 метки CFS (их шифрует и пишет приложение) или None — тип принтеру неизвестен.
+    Поля: дата AB124, производитель 0276, партия A2, 1+ID материала, 0+RRGGBB, метры, серийный №, резерв."""
+    mat = spool["material"].upper()
+    fam = material_family(spool["material"])
+    key = fam + ("-SILK" if "SILK" in mat and fam == "PLA" else "-CF" if "CF" in mat else "")
+    mid = CREALITY_MATERIAL_IDS.get(key) or CREALITY_MATERIAL_IDS.get(fam)
+    if not mid:
+        return None
+    color = (spool["color_hex"] or "#888888").lstrip("#").upper()
+    meters = int((spool["weight_total"] or 1000) * 0.33)  # как у Creality: 1 кг — 330 м, 500 г — 165 м
+    return "AB124" + "0276" + "A2" + "1" + mid + "0" + color + "%04d" % min(meters, 9999) \
+        + "%06d" % (spool["id"] % 1000000) + "0" * 14
 
 
 def price_comparison(spool):

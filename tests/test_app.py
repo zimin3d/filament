@@ -918,3 +918,22 @@ def test_material_group_filter(admin):
     html = admin.get("/?material=*PETG").get_data(as_text=True)
     assert "b1" in html and "b2" in html and "a1" not in html
     assert admin.get("/?material=*НЕТ").status_code == 200  # неизвестная группа — пустой список, не ошибка
+
+
+def test_creality_nfc_tag(admin, monkeypatch):
+    """Метка CFS: 48 символов в формате Creality; кнопка — только в приложении; из браузера — подсказка."""
+    import logic
+    tag = logic.creality_tag({"material": "PLA silk", "color_hex": "#ff8800", "weight_total": 500, "id": 42})
+    assert tag == "AB124" "0276" "A2" "100002" "0FF8800" "0165" "000042" + "0" * 14 and len(tag) == 48
+    assert logic.creality_tag({"material": "CR-PETG", "color_hex": "#000000", "weight_total": 1000, "id": 1})[11:28] \
+        == "100003" "0000000" "0330"
+    assert logic.creality_tag({"material": "PLA-CF", "color_hex": "#ffffff", "weight_total": 750, "id": 1})[11:17] == "100006"
+    assert logic.creality_tag({"material": "Wood", "color_hex": "#ffffff", "weight_total": 1000, "id": 1}) is None
+    sid = add_spool(admin, material="PETG", color_hex="#00ff00")
+    assert "NFC-метка Creality" not in admin.get("/spool/%d" % sid).get_data(as_text=True)  # сайт: нечем писать
+    monkeypatch.setattr(logic, "PHONE", True)
+    html = admin.get("/spool/%d" % sid).get_data(as_text=True)
+    assert "/nfc?tag=AB1240276A21000030" in html and "NFC-метка Creality" in html
+    monkeypatch.setattr(logic, "PHONE", False)
+    r = admin.get("/spool/%d/nfc?tag=x" % sid)
+    assert r.status_code == 302 and ("error", "Метка записывается только из приложения на телефоне с NFC.") in flashes(admin, r)
