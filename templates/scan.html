@@ -7,6 +7,7 @@
   <div class="scan-frame" aria-hidden="true"></div>
 </div>
 <p id="scan-status" class="scan-status" role="status">Запуск камеры…</p>
+{% if phone and is_admin %}<p><a class="btn lg" href="{{ url_for('scan_nfc') }}">Считать RFID-метку катушки</a></p>{% endif %}
 <form id="scan-manual" class="scan-manual">
   <input name="number" inputmode="numeric" placeholder="…или номер катушки" autocomplete="off" class="big-input" enterkeyhint="go" aria-label="Номер катушки">
   <button class="btn primary lg">Найти</button>

@@ -81,6 +81,17 @@ class MainActivity : ComponentActivity() {
                         }
                         return true
                     }
+                    if (request.url.path?.endsWith("/scan/nfc") == true) {  // сканер: метка -> страница катушки
+                        val origin = "${request.url.scheme}://${request.url.authority}"
+                        waitForTag("RFID-метка катушки") { tag ->
+                            val (text, error) = try { CfsTag.payload(tag) to null } catch (e: Exception) { "" to (e.message ?: "ошибка чтения") }
+                            runOnUiThread {
+                                if (error != null) Toast.makeText(this@MainActivity, "Метку не прочитать: $error. Подробности — «Считать NFC-метку»", Toast.LENGTH_LONG).show()
+                                else web.loadUrl("$origin/scan/rfid?tag=" + Uri.encode(text))
+                            }
+                        }
+                        return true
+                    }
                     if (request.url.path?.endsWith("/nfc-read") == true) {
                         nfcSession("Чтение NFC-метки") { tag -> CfsTag.read(tag) }
                         return true
@@ -186,8 +197,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** NFC: ждём метку, выполняем action, протокол — в окно (скопировать / поделиться) и в files/nfc.log. */
-    private fun nfcSession(title: String, action: (Tag) -> String) {
+    /** NFC: проверить, что есть и включён, показать «поднесите метку», отдать метку в onTag (фоновый поток). */
+    private fun waitForTag(title: String, onTag: (Tag) -> Unit) {
         val nfc = NfcAdapter.getDefaultAdapter(this)
         if (nfc == null) {
             Toast.makeText(this, "В телефоне нет NFC", Toast.LENGTH_LONG).show(); return
@@ -204,17 +215,20 @@ class MainActivity : ComponentActivity() {
             .setOnCancelListener { nfc.disableReaderMode(this) }
             .show()
         nfc.enableReaderMode(this, { tag ->
-            val report = try { action(tag) } catch (e: Exception) { "Ошибка: ${e.message ?: e.javaClass.simpleName}" }
-            val stamped = "$title — ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}\n" +
-                "Приложение ${packageManager.getPackageInfo(packageName, 0).versionName}, Android ${android.os.Build.VERSION.RELEASE}, " +
-                "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}\n$report"
-            try { File(filesDir, "nfc.log").appendText(stamped + "\n\n") } catch (_: Exception) {}
-            runOnUiThread {
-                nfc.disableReaderMode(this)
-                waiting.dismiss()
-                showReport(title, stamped)
+            try { onTag(tag) } finally {
+                runOnUiThread { nfc.disableReaderMode(this); waiting.dismiss() }
             }
         }, NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK, null)
+    }
+
+    /** NFC: ждём метку, выполняем action, протокол — в окно (скопировать / поделиться) и в files/nfc.log. */
+    private fun nfcSession(title: String, action: (Tag) -> String) = waitForTag(title) { tag ->
+        val report = try { action(tag) } catch (e: Exception) { "Ошибка: ${e.message ?: e.javaClass.simpleName}" }
+        val stamped = "$title — ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}\n" +
+            "Приложение ${packageManager.getPackageInfo(packageName, 0).versionName}, Android ${android.os.Build.VERSION.RELEASE}, " +
+            "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}\n$report"
+        try { File(filesDir, "nfc.log").appendText(stamped + "\n\n") } catch (_: Exception) {}
+        runOnUiThread { showReport(title, stamped) }
     }
 
     /** Протокол на экран: выделяемый текст, «Скопировать», «Поделиться» (Telegram и т.п.). */

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Метка RFID{% endblock %}
+{% block content %}
+<h1>Метка RFID</h1>
+<dl class="kv">
+  <dt>Материал</dt><dd>{{ info.name or info.material or ('ID ' ~ info.material_id) }}{% if info.brand %} ({{ info.brand }}){% endif %}</dd>
+  <dt>Цвет</dt><dd>{% if info.color %}<span class="swatch big" style="background: {{ info.color }}"></span> <span class="num">{{ info.color }}</span>{% else %}—{% endif %}</dd>
+  <dt>Вес по метке</dt><dd class="num">{{ info.weight|grams if info.weight else '—' }}</dd>
+  <dt>Производитель (код)</dt><dd class="num">{{ info.vendor }}{% if info.vendor == '0276' %} — Creality{% endif %}</dd>
+</dl>
+<p class="small muted">Эта метка не записана приложением, поэтому катушку в учёте не знает. Похожие по типу и цвету:</p>
+{% if near %}
+<div class="table-wrap"><table class="tbl stack numfirst">
+  <tbody>{% for s in near %}
+    <tr><td>{{ s.number }}</td>
+      <td class="primary"><a href="{{ url_for('spool_detail', spool_id=s.id) }}"><span class="swatch" style="background: {{ s.swatch }}"></span> {{ s.material }} {{ s.color_name }}</a> <span class="muted small">{{ s.manufacturer }}</span></td>
+      <td class="n">{{ s.weight_left|grams }}</td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% else %}<p class="empty">Похожих катушек нет.</p>{% endif %}
+{% if is_admin %}
+<div class="actions">
+  <a class="btn primary" href="{{ url_for('spool_new', manufacturer=info.brand or None, material=info.material or None, color_hex=info.color or None, weight_total=info.weight or None) }}">Добавить катушку с этими данными</a>
+  <a class="btn" href="{{ url_for('scan') }}">Сканировать ещё</a>
+</div>
+{% endif %}
+<p class="small t3 num">Метка: {{ info.raw }}</p>
+{% endblock %}

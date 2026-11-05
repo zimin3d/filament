@@ -66,6 +66,20 @@ object CfsTag {
         return log.toString()
     }
 
+    /** Данные метки для сканера: 48 символов сектора 1 (расшифрованных, если сектор закрыт ключом из UID). */
+    fun payload(tag: Tag): String {
+        val mfc = MifareClassic.get(tag)
+            ?: throw IllegalStateException("Это не MIFARE Classic (или телефон такие не читает)")
+        mfc.connect()
+        try {
+            val how = open(mfc, 1, sectorKey(tag.id)) ?: throw IllegalStateException("Метка закрыта неизвестным ключом")
+            val data = (4..6).map { mfc.readBlock(it) }.reduce { a, b -> a + b }
+            return (if (how == "из UID") aes(DATA_KEY, data, Cipher.DECRYPT_MODE) else data).text()
+        } finally {
+            try { mfc.close() } catch (_: Exception) {}
+        }
+    }
+
     /** Ключ сектора: первые 4 байта UID по кругу до 16, AES, первые 6 байт. */
     fun sectorKey(uid: ByteArray): ByteArray = aes(UID_KEY, ByteArray(16) { uid[it % 4] }).copyOf(6)
 

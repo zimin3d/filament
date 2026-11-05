@@ -379,6 +379,62 @@ CREALITY_MATERIAL_IDS = {"PLA": "00001", "PLA-SILK": "00002", "PETG": "00003", "
                          "PCTG": "00032"}
 
 
+# ID из базы материалов Creality K2 -> (производитель, название, тип) — для заводских меток
+CREALITY_MATERIALS = {
+    "01001": ("Creality", "Hyper PLA", "PLA"), "02001": ("Creality", "Hyper PLA-CF", "PLA-CF"),
+    "06002": ("Creality", "Hyper PETG", "PETG"), "03001": ("Creality", "Hyper ABS", "ABS"),
+    "09002": ("Creality", "Ender Fast PLA", "PLA"), "04001": ("Creality", "CR-PLA", "PLA"),
+    "05001": ("Creality", "CR-Silk", "PLA Silk"), "06001": ("Creality", "CR-PETG", "PETG"),
+    "07001": ("Creality", "CR-ABS", "ABS"), "08001": ("Creality", "Ender-PLA", "PLA"),
+    "09001": ("Creality", "EN-PLA+", "PLA+"), "10001": ("Creality", "HP-TPU", "TPU"),
+    "11001": ("Creality", "CR-Nylon", "PA"), "13001": ("Creality", "CR-PLA Carbon", "PLA-CF"),
+    "14001": ("Creality", "CR-PLA Matte", "PLA"), "15001": ("Creality", "CR-PLA Fluo", "PLA"),
+    "16001": ("Creality", "CR-TPU", "TPU"), "17001": ("Creality", "CR-Wood", "PLA"),
+    "18001": ("Creality", "HP Ultra PLA", "PLA"), "19001": ("Creality", "HP-ASA", "ASA"),
+    "07002": ("Creality", "Hyper PC", "PC"), "06003": ("Creality", "Hyper PETG-CF", "PETG-CF"),
+    "01002": ("Creality", "Hyper L-W PLA", "PLA"), "01004": ("Creality", "Hyper Stardust", "PLA"),
+    "29001": ("Creality", "Hyper Marble", "PLA"), "01601": ("Creality", "Soleyin Ultra PLA", "PLA"),
+    "E1001": ("eSUN", "PLA+", "PLA+"), "P1001": ("Polymaker", "Panchroma PLA Satin", "PLA"),
+    "P1002": ("Polymaker", "PolySonic PLA Pro", "PLA"), "P1003": ("Polymaker", "Panchroma PLA Matte", "PLA"),
+}
+
+
+def parse_creality_tag(text):
+    """48 символов сектора 1 (расшифрованных приложением) -> поля, или None, если это не метка CFS."""
+    if not re.fullmatch(r"[0-9A-Za-z]{48}", text or ""):
+        return None
+    text = text.upper()
+    mid, color = text[12:17], text[18:24]
+    generic = {v: k for k, v in CREALITY_MATERIAL_IDS.items()}.get(mid)
+    brand, name, mtype = CREALITY_MATERIALS.get(mid) or ("", generic or "", (generic or "").replace("-SILK", " Silk"))
+    try:
+        meters = int(text[24:28])
+        serial = int(text[28:34])
+    except ValueError:
+        return None
+    return {"vendor": text[5:9], "material_id": mid, "brand": brand, "name": name, "material": mtype,
+            "color": "#" + color if re.fullmatch(r"[0-9A-F]{6}", color) else None,
+            "weight": int(round(meters / 0.33 / 50) * 50) if meters else None,  # 330 м -> 1000 г
+            "serial": serial, "raw": text}
+
+
+def find_by_creality_tag(info):
+    """(катушка точно — метка записана нашим приложением, похожие по типу и цвету)."""
+    db = get_db()
+    row = db.execute("SELECT * FROM spools WHERE id = ?", (info["serial"],)).fetchone()
+    if row and (creality_tag(row) or "")[11:24] == info["raw"][11:24]:  # тот же материал и цвет — значит, наша
+        return row, []
+    family = material_family(info["material"]) if info["material"] else None
+    near = []
+    for r in db.execute("SELECT * FROM spools WHERE weight_left > 0"):
+        if family and material_family(r["material"]) != family:
+            continue
+        d = color_distance(info["color"], r["color_hex"]) if info["color"] else 0
+        if d < COLOR_NEAR:
+            near.append((d, r))
+    return None, [spool_view(r) for _, r in sorted(near, key=lambda x: x[0])[:12]]
+
+
 def creality_tag(spool):
     """48 символов для сектора 1 метки CFS (их шифрует и пишет приложение) или None — тип принтеру неизвестен.
     Поля: дата AB124, производитель 0276, партия A2, 1+ID материала, 0+RRGGBB, метры, серийный №, резерв."""

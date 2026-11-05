@@ -951,3 +951,25 @@ def test_nfc_read_buttons(admin, monkeypatch):
     assert 'href="/nfc-read"' not in admin.get("/spool/%d" % sid).get_data(as_text=True)
     r = admin.get("/nfc-read")
     assert r.status_code == 302 and ("error", "Метку читает приложение на телефоне с NFC.") in flashes(admin, r)
+
+
+def test_scan_rfid(admin, monkeypatch):
+    """Сканер RFID: наша метка открывает катушку; заводская — похожие и «добавить с этими данными»."""
+    import logic
+    sid = add_spool(admin, material="PETG", color_hex="#ff8800")
+    other = add_spool(admin, material="PLA", color_hex="#c12e1f", color_name="красный")
+    with filament.app.test_request_context():
+        row = filament.get_db().execute("SELECT * FROM spools WHERE id = ?", (sid,)).fetchone()
+        ours = logic.creality_tag(row)
+    r = admin.get("/scan/rfid", query_string={"tag": ours})
+    assert r.status_code == 302 and r.location.endswith("/spool/%d" % sid)
+    factory = "AB1240276A21010010C12E1F0165000001" + "0" * 14  # пример заводской метки Hyper PLA из K2-RFID
+    html = admin.get("/scan/rfid", query_string={"tag": factory}).get_data(as_text=True)
+    assert "Hyper PLA" in html and "#C12E1F" in html and "/spool/%d" % other in html and "/spool/%d\"" % sid not in html
+    assert "material=PLA" in html and "color_hex=%23C12E1F" in html and "weight_total=500" in html
+    form = admin.get("/spool/new?material=PLA&color_hex=%23C12E1F&weight_total=500").get_data(as_text=True)
+    assert 'value="PLA"' in form and 'value="#C12E1F"' in form and 'name="weight_total" value="500"' in form
+    r = admin.get("/scan/rfid?tag=garbage")
+    assert r.status_code == 302 and "не метка Creality" in flashes(admin, r)[0][1]
+    monkeypatch.setattr(logic, "PHONE", True)
+    assert 'href="/scan/nfc"' in admin.get("/scan").get_data(as_text=True)

@@ -153,6 +153,27 @@ def spool_nfc(spool_id):
     return redirect(url_for("spool_detail", spool_id=spool_id))
 
 
+@app.route("/scan/nfc")
+@admin_required
+def scan_nfc():
+    """Кнопку «Считать RFID-метку» перехватывает приложение; сюда — только из браузера."""
+    flash("RFID-метку читает приложение на телефоне с NFC.", "error")
+    return redirect(url_for("scan"))
+
+
+@app.route("/scan/rfid")
+def scan_rfid():
+    """Приложение прочитало метку CFS (48 символов) — открываем катушку или показываем похожие."""
+    info = parse_creality_tag(request.args.get("tag", ""))
+    if info is None:
+        flash("Метка прочитана, но это не метка Creality CFS (или она пустая).", "error")
+        return redirect(url_for("scan"))
+    exact, near = find_by_creality_tag(info)
+    if exact:
+        return redirect(url_for("spool_detail", spool_id=exact["id"]))
+    return render_template("scan_rfid.html", info=info, near=near)
+
+
 @app.route("/nfc-read")
 @admin_required
 def nfc_read():
@@ -261,6 +282,10 @@ def spool_new():
         if row:
             s.update(json.loads(row["data"]))
             s["weight_left"] = s.get("weight_total", 1000)
+    else:  # из метки RFID: ?material=…&color_hex=…&weight_total=… (только подставить в форму — проверит сохранение)
+        s.update({k: request.args[k] for k in ("manufacturer", "material", "color_name", "color_hex", "weight_total")
+                  if request.args.get(k)})
+        s["weight_left"] = s["weight_total"]
     templates = db.execute("SELECT id, name FROM templates ORDER BY name").fetchall()
     return render_template("form.html", s=s, new=True, templates=templates, template_id=template_id)
 
