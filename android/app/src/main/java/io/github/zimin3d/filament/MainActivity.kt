@@ -73,7 +73,8 @@ class MainActivity : ComponentActivity() {
                         request.url.getQueryParameter("url")?.let { openUpdate(it) }
                         return true
                     }
-                    if (request.url.path?.endsWith("/nfc") == true) {  // /spool/<id>/nfc?tag=… — метка Creality
+                    // только /spool/<id>/nfc — иначе сюда попадал и сканер /scan/nfc и молча ничего не делал
+                    if (Regex("/spool/\\d+/nfc").matches(request.url.path ?: "")) {  // ?tag=… — запись метки Creality
                         request.url.getQueryParameter("tag")?.let { payload ->
                             nfcSession("Запись NFC-метки Creality") { tag ->
                                 StringBuilder().also { log -> CfsTag.write(tag, payload, log); log.appendLine("Итог: записано") }.toString()
