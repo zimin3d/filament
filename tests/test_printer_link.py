@@ -18,10 +18,21 @@ HISTORY = [  # новые сверху, как отдаёт Moonraker
 
 
 class Moonraker(BaseHTTPRequestHandler):
+    STATE = "printing"
+    posts = []
+
+    def do_POST(self):  # запуск / пауза / загрузка — запоминаем, что пришло
+        n = int(self.headers.get("Content-Length") or 0)
+        Moonraker.posts.append((self.path, self.rfile.read(n)))
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b'{"result": "ok"}')
+
     def do_GET(self):
         if self.path.startswith("/printer/objects/query"):
             Moonraker.last_query = self.path
-            body = {"result": {"status": {"print_stats": {"state": "printing", "filename": "cube.gcode", "print_duration": 600},
+            body = {"result": {"status": {"print_stats": {"state": Moonraker.STATE, "filename": "cube.gcode", "print_duration": 600},
                                           "display_status": {"progress": 0.42},
                                           "extruder": {"temperature": 219.6, "target": 220},
                                           "heater_bed": {"temperature": 60.1, "target": 60}}}}
@@ -29,6 +40,10 @@ class Moonraker(BaseHTTPRequestHandler):
             body = {"result": {"objects": ["print_stats", "gcode_macro BOX_LOAD", "box", "heater_bed",
                                            "filament_switch_sensor filament_sensor"]}}
             Moonraker.objects_seen = True
+        elif self.path.startswith("/server/files/list"):
+            body = {"result": [{"path": "old.gcode", "modified": NOW - 99, "size": 1048576},
+                               {"path": "Тест кубик.gcode", "modified": NOW, "size": 2097152},
+                               {"path": "notes.txt", "modified": NOW, "size": 10}]}
         elif self.path.startswith("/printer/info"):
             body = {"result": {"state": "ready", "hostname": "K2"}}
         elif self.path.startswith("/server/history/list"):
@@ -110,3 +125,39 @@ def test_printer_dump_bambu_has_no_access_code(admin, monkeypatch):
                         lambda c: {"gcode_state": "IDLE", "ams": {"ams": [{"id": "0", "tray": []}]}})
     r = admin.get("/printer/dump")
     assert r.get_json()["report"]["gcode_state"] == "IDLE" and "SECRET42" not in r.get_data(as_text=True)
+
+
+def test_printer_start_upload_cancel(admin, anon, printer):
+    """K2/Moonraker: список файлов, запуск (только когда свободен), загрузка с запуском, пауза и отмена."""
+    import io
+    import urllib.parse
+    Moonraker.posts.clear()
+    admin.post("/printer/link", data={"csrf": "t", "action": "save", "host": "127.0.0.1", "port": str(printer)})
+    Moonraker.STATE = "standby"
+    try:
+        html = admin.get("/printer/link").get_data(as_text=True)
+        assert "Тест кубик.gcode" in html and "old.gcode" in html and "notes.txt" not in html
+        assert html.index("Тест кубик.gcode") < html.index("old.gcode")  # новые сверху
+        r = admin.post("/printer/link", data={"csrf": "t", "action": "start", "file": "Тест кубик.gcode"})
+        assert ("ok", "Печать «Тест кубик.gcode» запущена.") in flashes(admin, r)
+        assert Moonraker.posts[-1][0] == "/printer/print/start?filename=" + urllib.parse.quote("Тест кубик.gcode")
+        for bad in ("../etc/passwd.gcode", "/abs.gcode", "x.txt"):  # чужие пути и не G-code — не запускаем
+            r = admin.post("/printer/link", data={"csrf": "t", "action": "start", "file": bad})
+            assert flashes(admin, r)[0][0] == "error"
+        r = admin.post("/printer/link", data={"csrf": "t", "action": "upload", "start": "1",
+                                              "gcode": (io.BytesIO(b"G28\nG1 X10\n"), "part.gcode")},
+                       content_type="multipart/form-data")
+        assert ("ok", "Файл «part.gcode» загружен, печать запущена.") in flashes(admin, r)
+        path, body = Moonraker.posts[-1]
+        assert path == "/server/files/upload" and b'filename="part.gcode"' in body and b"G28\nG1 X10" in body
+        assert b'name="print"\r\n\r\ntrue' in body and b'name="root"\r\n\r\ngcodes' in body
+        Moonraker.STATE = "printing"  # занят — новую печать не запускаем, отмена работает
+        n = len(Moonraker.posts)
+        r = admin.post("/printer/link", data={"csrf": "t", "action": "start", "file": "old.gcode"})
+        assert "уже печатает" in flashes(admin, r)[0][1] and len(Moonraker.posts) == n
+        assert "Отменить печать" in admin.get("/printer/link").get_data(as_text=True)
+        admin.post("/printer/link", data={"csrf": "t", "action": "cancel"})
+        assert Moonraker.posts[-1][0] == "/printer/print/cancel"
+        assert anon.post("/printer/link", data={"action": "cancel"}).status_code in (302, 400)  # без входа — нет
+    finally:
+        Moonraker.STATE = "printing"

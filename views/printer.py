@@ -4,6 +4,7 @@ import os
 import re
 import secrets
 import time
+import uuid
 from datetime import date
 
 from flask import abort, flash, jsonify, redirect, render_template, request, url_for
@@ -279,6 +280,58 @@ def moonraker(path, cfg=None):
         return json.loads(r.read(2_000_000)).get("result") or {}
 
 
+def moonraker_post(path, body=b"", ctype=None, cfg=None, timeout=PRINTER_TIMEOUT):
+    """POST к Moonraker (запуск, пауза, загрузка файла)."""
+    import urllib.request
+    base = printer_addr(cfg)
+    if not base:
+        raise ValueError("Адрес принтера не задан.")
+    req = urllib.request.Request(base + path, data=body, method="POST", headers={"Content-Type": ctype} if ctype else {})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read(2_000_000) or b"{}").get("result")
+
+
+PRINT_FILE = re.compile(r"[^/\\][^\\]*\.(gcode|gco|gcode\.3mf)", re.I)  # имя файла на принтере, без «..» и «/» в начале
+
+
+def printer_files(cfg):
+    """G-code на принтере (Moonraker, папка gcodes), новые сверху."""
+    files = moonraker("/server/files/list?root=gcodes", cfg)
+    files = [f for f in files if isinstance(f, dict) and PRINT_FILE.fullmatch(str(f.get("path", "")))] if isinstance(files, list) else []
+    return sorted(files, key=lambda f: -float(f.get("modified") or 0))[:40]
+
+
+def printer_control(cfg):
+    """Запуск, загрузка, пауза/продолжение/отмена печати. Возвращает текст для flash; исключение — ошибка."""
+    import urllib.parse
+    action = request.form.get("action")
+    if action in ("pause", "resume", "cancel"):
+        moonraker_post("/printer/print/" + action, cfg=cfg)
+        return {"pause": "Пауза.", "resume": "Печать продолжена.", "cancel": "Печать отменена."}[action]
+    if (printer_live() or {}).get("raw_state") in ("printing", "paused"):
+        raise ValueError("Принтер уже печатает — дождитесь окончания или отмените текущую печать.")
+    if action == "start":
+        name = request.form.get("file", "")
+        if ".." in name or not PRINT_FILE.fullmatch(name):
+            raise ValueError("Неверное имя файла.")
+        moonraker_post("/printer/print/start?filename=" + urllib.parse.quote(name), cfg=cfg)
+        return "Печать «%s» запущена." % name
+    f = request.files.get("gcode")
+    name = os.path.basename((f.filename if f else "") or "")
+    if not f or ".." in name or not PRINT_FILE.fullmatch(name):
+        raise ValueError("Выберите файл .gcode или .gcode.3mf.")
+    start = bool(request.form.get("start"))
+    boundary = uuid.uuid4().hex
+    head = "".join('--%s\r\nContent-Disposition: form-data; name="%s"\r\n\r\n%s\r\n' % (boundary, k, v)
+                   for k, v in (("root", "gcodes"), ("print", "true" if start else "false")))
+    # shortcut: файл целиком в памяти (G-code обычно десятки МБ); стримить, если пойдут файлы в сотни МБ
+    body = (head + '--%s\r\nContent-Disposition: form-data; name="file"; filename="%s"\r\n'
+            "Content-Type: application/octet-stream\r\n\r\n" % (boundary, name)).encode() + f.read() \
+        + ("\r\n--%s--\r\n" % boundary).encode()
+    moonraker_post("/server/files/upload", body, "multipart/form-data; boundary=" + boundary, cfg=cfg, timeout=300)
+    return ("Файл «%s» загружен, печать запущена." if start else "Файл «%s» загружен на принтер.") % name
+
+
 def is_bambu(cfg):
     return cfg.get("printer_kind") == "bambu"
 
@@ -397,6 +450,14 @@ def printer_link():
                 cfg["bambu_code"] = code
             save_config(cfg)
             flash("Сохранено." if host else "Связь с принтером отключена.", "ok")
+        elif action in ("start", "upload", "pause", "resume", "cancel"):
+            if is_bambu(cfg):
+                flash("Запуск печати пока только для Klipper/Moonraker (Creality K2).", "error")
+            else:
+                try:
+                    flash(printer_control(cfg), "ok")
+                except (OSError, ValueError) as e:
+                    flash("Не получилось: %s" % (getattr(e, "reason", None) or e), "error")
         elif action == "poll":
             try:
                 auto, pending = poll_printer()
@@ -405,13 +466,16 @@ def printer_link():
                 flash("Принтер не отвечает: %s" % (getattr(e, "reason", None) or e), "error")
         return redirect(url_for("printer_link"))
     live = error = None
+    files = []
     if cfg.get("printer_host"):
         try:
             live = printer_live()
+            if not is_bambu(cfg):
+                files = printer_files(cfg)
         except (OSError, ValueError) as e:
             error = str(getattr(e, "reason", None) or e)
     return render_template("printer_link.html", cfg=cfg, live=live, error=error, spool=printer_spool(),
-                           phone=PHONE)
+                           phone=PHONE, files=files)
 
 
 DUMP_OBJECTS = re.compile(r"box|cfs|filament|rfid|material|spool|feeder|buffer|extruder|print_stats|virtual_sdcard",

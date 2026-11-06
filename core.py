@@ -441,6 +441,8 @@ def login_failed(ip):
 
 @app.before_request
 def check_csrf():
+    if request.endpoint == "printer_link":  # загрузка G-code на принтер: файлы больше общего лимита 15 МБ
+        request.max_content_length = 512 * 1024 * 1024
     if request.method == "POST" and not request.path.startswith("/api/"):  # API — по токену
         token = request.form.get("csrf")
         if not token or not secrets.compare_digest(token, session.get("csrf", "")):
@@ -529,6 +531,13 @@ def duration(minutes):
         return "—"
     h, m = divmod(int(minutes), 60)
     return ("%d ч %02d мин" % (h, m)) if h else ("%d мин" % m)
+
+
+@app.template_filter("ts_date")
+def ts_date(ts):
+    """Метка времени Unix (Moonraker) -> «06.11.2026 21:17»."""
+    from datetime import datetime
+    return datetime.fromtimestamp(float(ts)).strftime("%d.%m.%Y %H:%M")
 
 
 @app.template_filter("ru_date")

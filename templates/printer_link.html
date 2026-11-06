@@ -36,6 +36,37 @@
   <button class="btn primary" name="action" value="poll">↻ Забрать печати</button>
   <a class="btn" href="{{ url_for('printer_link') }}">Обновить состояние</a>
 </form>
+{% if live and cfg.printer_kind != 'bambu' %}
+{% if live.raw_state in ('printing', 'paused') %}
+<form method="post" class="actions">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  {% if live.raw_state == 'printing' %}<button class="btn" name="action" value="pause">Пауза</button>
+  {% else %}<button class="btn primary" name="action" value="resume">Продолжить</button>{% endif %}
+  <button class="btn danger" name="action" value="cancel" data-confirm="Отменить печать «{{ live.file }}»?" data-confirm-ok="Отменить печать" data-confirm-danger>Отменить печать</button>
+</form>
+{% endif %}
+<h2>Файлы на принтере</h2>
+{% if files %}
+<div class="table-wrap"><table class="tbl stack">
+  <tbody>{% for f in files %}
+    <tr><td class="primary">{{ f.path }}</td>
+      <td class="n t2">{{ '%.1f'|format((f.size or 0) / 1048576) }} МБ</td>
+      <td class="n t2">{{ f.modified|ts_date if f.modified else '' }}</td>
+      <td class="end">{% if live.raw_state not in ('printing', 'paused') %}<form method="post" class="inline"
+          data-confirm="Стол свободен? Запустить печать «{{ f.path }}»?" data-confirm-ok="Печать">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="file" value="{{ f.path }}">
+        <button class="btn sm primary" name="action" value="start">Печать</button></form>{% endif %}</td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% else %}<p class="empty">На принтере нет файлов G-code.</p>{% endif %}
+<form method="post" enctype="multipart/form-data" class="weigh query">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <b>Загрузить на принтер</b>
+  <label class="grow">Файл .gcode или .gcode.3mf (из слайсера)<input type="file" name="gcode" accept=".gcode,.gco,.3mf" required></label>
+  <label class="check"><input type="checkbox" name="start" value="1" checked>сразу начать печать (стол свободен)</label>
+  <button class="btn primary" name="action" value="upload">Загрузить</button>
+</form>
+{% endif %}
 <p class="small"><a href="{{ url_for('printer_dump') }}">Снять данные принтера</a>
   <span class="muted">— файл для разработчика: по нему приложение научится читать ячейки CFS (K2) или проверит связь с Bambu.
   {% if phone %}Сохранится в «Загрузки».{% endif %} Секретов (кода доступа) в нём нет.</span></p>
