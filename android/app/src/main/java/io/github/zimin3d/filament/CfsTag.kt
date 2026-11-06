@@ -21,11 +21,30 @@ object CfsTag {
     private fun ByteArray.hex() = joinToString("") { "%02X".format(it) }
     private fun ByteArray.text() = String(CharArray(size) { i -> this[i].toInt().let { if (it in 32..126) it.toChar() else '.' } })
 
-    /** Открыть сектор: заводской ключ, затем ключ из UID. После неудачи метка «засыпает» — переподключаемся. */
-    private fun open(mfc: MifareClassic, sector: Int, key: ByteArray): String? {
-        for ((name, k) in listOf("заводской" to MifareClassic.KEY_DEFAULT, "из UID" to key)) {
-            if (mfc.authenticateSectorWithKeyA(sector, k)) return name
-            mfc.close(); mfc.connect()
+    /** Метка «уснула» после неверного ключа, а переподключиться телефон не смог (так бывает, например, на Xiaomi). */
+    class Retap(msg: String) : IllegalStateException(msg)
+
+    /** Какой ключ уже не подошёл к сектору метки («UID:сектор» -> имя ключа): со следующего касания он идёт последним. */
+    private val badKey = HashMap<String, String>()
+
+    /**
+     * Открыть сектор. Каждый неверный ключ «усыпляет» метку, поэтому сначала — вероятный: preferUid для сектора 1
+     * (Creality и наши метки), заводской — для остальных и для чистых меток. Не подошёл и не переподключиться — Retap.
+     */
+    private fun open(mfc: MifareClassic, uid: ByteArray, sector: Int, key: ByteArray, preferUid: Boolean): String? {
+        val id = "${uid.hex()}:$sector"
+        var keys = listOf("из UID" to key, "заводской" to MifareClassic.KEY_DEFAULT)
+        if (!preferUid) keys = keys.reversed()
+        badKey[id]?.let { bad -> keys = keys.sortedBy { it.first == bad } }
+        for ((i, k) in keys.withIndex()) {
+            if (mfc.authenticateSectorWithKeyA(sector, k.second)) return k.first
+            badKey[id] = k.first
+            if (i < keys.lastIndex) {
+                try { mfc.close(); mfc.connect() } catch (e: Exception) {
+                    throw Retap("метка не ответила после ключа «${k.first}» (сектор $sector) — поднесите её ещё раз, " +
+                        "следующая попытка начнёт с другого ключа")
+                }
+            }
         }
         return null
     }
@@ -44,7 +63,9 @@ object CfsTag {
         mfc.connect()
         try {
             for (s in 0 until mfc.sectorCount) {
-                val how = try { open(mfc, s, key) } catch (e: Exception) { log.appendLine("Сектор $s: ошибка ${e.message}"); continue }
+                val how = try { open(mfc, tag.id, s, key, preferUid = s == 1) } catch (e: Retap) {
+                    log.appendLine("Сектор $s: ${e.message}"); break  // соединение потеряно — дальше читать нечем
+                } catch (e: Exception) { log.appendLine("Сектор $s: ошибка ${e.javaClass.simpleName}: ${e.message}"); continue }
                 log.appendLine("Сектор $s: ${how ?: "нет доступа ни одним ключом"}")
                 if (how == null) continue
                 val first = mfc.sectorToBlock(s)
@@ -72,7 +93,8 @@ object CfsTag {
             ?: throw IllegalStateException("Это не MIFARE Classic (или телефон такие не читает)")
         mfc.connect()
         try {
-            val how = open(mfc, 1, sectorKey(tag.id)) ?: throw IllegalStateException("Метка закрыта неизвестным ключом")
+            val how = open(mfc, tag.id, 1, sectorKey(tag.id), preferUid = true)
+                ?: throw IllegalStateException("Метка закрыта неизвестным ключом")
             val data = (4..6).map { mfc.readBlock(it) }.reduce { a, b -> a + b }
             return (if (how == "из UID") aes(DATA_KEY, data, Cipher.DECRYPT_MODE) else data).text()
         } finally {
@@ -96,7 +118,8 @@ object CfsTag {
         mfc.connect()
         try {
             // новая метка — заводской ключ; уже записанная нами или Creality — ключ из UID
-            val how = open(mfc, 1, key) ?: throw IllegalStateException("Метка защищена неизвестным ключом — возьмите чистую")
+            val how = open(mfc, tag.id, 1, key, preferUid = false)  // чистые метки — заводской ключ
+                ?: throw IllegalStateException("Метка защищена неизвестным ключом — возьмите чистую")
             log.appendLine("Сектор 1 открыт ключом: $how (ключ из UID ${key.hex()})")
             val data = aes(DATA_KEY, payload.toByteArray(Charsets.US_ASCII))
             for (i in 0 until 3) mfc.writeBlock(4 + i, data.copyOfRange(i * 16, i * 16 + 16))
