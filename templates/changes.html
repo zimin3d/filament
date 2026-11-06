@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Что нового{% endblock %}
+{% block content %}
+<h1>Что нового</h1>
+{% if app_update %}
+<section class="section-card">
+  <h2>Доступна версия {{ app_update.version }}</h2>
+  {% for v in app_update.notes %}<p class="small t2 num">{{ v.version }}{% if v.date %} — {{ v.date }}{% endif %}</p>
+  <ul class="prose">{% for it in v["items"] %}<li>{{ it }}</li>{% endfor %}</ul>{% endfor %}
+  <a class="btn primary" href="{{ url_for('app_update_install', url=app_update.apk) }}">Скачать обновление</a>
+  <p class="hint">Файл скачается в браузере — откройте его и установите поверх; данные сохранятся.</p>
+</section>
+{% endif %}
+{% for v in versions %}
+<h2 class="num">{{ v.version }}{% if v.date %} <span class="small t3">{{ v.date }}</span>{% endif %}{% if current and v.version == current %} <span class="pill status-sealed">установлена</span>{% endif %}</h2>
+<ul class="prose">{% for it in v["items"] %}<li>{{ it }}</li>{% endfor %}</ul>
+{% else %}<p class="empty">История изменений не найдена.</p>{% endfor %}
+{% endblock %}

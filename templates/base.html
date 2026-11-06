@@ -37,6 +37,7 @@
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, m in msgs %}<div role="status" class="flash {{ cat }}">{{ m }}</div>{% endfor %}
   {% endwith %}
+  {% if app_update and request.endpoint not in ('changes', 'sync_page') %}<a class="banner" href="{{ url_for('changes') }}">Доступна версия {{ app_update.version }} — что нового и скачать</a>{% endif %}
   {% block content %}{% endblock %}
 </main>
 </div>

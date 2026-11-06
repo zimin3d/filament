@@ -209,6 +209,38 @@ def test_app_update_check(monkeypatch):
     assert not vs.check_app_update(fetch)["newer"]
 
 
+def test_update_notes_banner_and_changes(admin, monkeypatch):
+    """Новая версия: описание из CHANGELOG выпуска (только новее установленной), плашка в приложении, «Что нового»."""
+    import logic
+    vs = filament.views.sync
+    release = {"tag_name": "v0.6", "assets": [{"name": "f.apk", "browser_download_url": vs.APK_PREFIX + "v0.6/f.apk"}]}
+    log = "## v0.6 — 2026-01-02\n- Шестая\n## v0.5 — 2026-01-01\n- Пятая\n## v0.4\n- Старая\n"
+    fetch = lambda url: (log if url.endswith("CHANGELOG.md") else json.dumps(release)).encode()  # noqa: E731
+    monkeypatch.setenv("FILAMENT_APP_VERSION", "v0.4")
+    upd = vs.check_app_update(fetch)
+    assert [v["version"] for v in upd["notes"]] == ["v0.6", "v0.5"] and upd["notes"][0]["items"] == ["Шестая"]
+    with filament.app.test_request_context():
+        vs.remember_update(upd)
+    assert "Доступна версия v0.6" not in admin.get("/").get_data(as_text=True)  # сайт — не приложение
+    monkeypatch.setattr(logic, "PHONE", True)
+    html = admin.get("/").get_data(as_text=True)
+    assert "Доступна версия v0.6" in html and 'data-badge="update"' in html
+    page = admin.get("/changes").get_data(as_text=True)
+    assert "Шестая" in page and "Пятая" in page and "Скачать обновление" in page
+    monkeypatch.setenv("FILAMENT_APP_VERSION", "v0.6")  # обновились — плашки нет
+    assert "Доступна версия" not in admin.get("/").get_data(as_text=True)
+    monkeypatch.setattr(logic, "PHONE", False)
+    monkeypatch.delenv("FILAMENT_APP_VERSION")  # на сервере версии приложения нет
+    page = admin.get("/changes").get_data(as_text=True)  # история из CHANGELOG.md проекта
+    assert "v0.16" in page and "установлена" not in page and "Скачать обновление" not in page
+    def offline_notes(url):  # CHANGELOG не скачать — обновление всё равно предлагается, без описания
+        if "api." in url:
+            return json.dumps(release).encode()
+        raise OSError("нет сети")
+    r = vs.check_app_update(offline_notes)
+    assert r["newer"] and r["notes"] == []
+
+
 def test_app_update_install_outside_app(admin):
     r = admin.get("/app-update/install?url=x")
     assert r.status_code == 302 and r.location.endswith("/sync")

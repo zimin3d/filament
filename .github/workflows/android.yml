@@ -82,8 +82,25 @@ jobs:
           name: filament-apk
           path: out/*.apk
 
+      - name: Описание выпуска из CHANGELOG.md
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY' > out/notes.md
+          import os, re
+          tag, out, on = os.environ["TAG"], [], False
+          for line in open("CHANGELOG.md", encoding="utf-8"):
+              if line.startswith("## "):
+                  on = re.match(r"##\s+" + re.escape(tag) + r"\b", line) is not None
+              elif on:
+                  out.append(line)
+          print("".join(out).strip() or "Изменения — в CHANGELOG.md")
+          PY
+
       - name: Релиз
         if: github.ref_type == 'tag' && env.SIGNED == '1'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
         with:
           files: out/*.apk
+          body_path: out/notes.md

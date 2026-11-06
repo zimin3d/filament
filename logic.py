@@ -35,7 +35,7 @@ def inject_globals():
             if is_admin() else 0, "materials": MATERIALS,
             "maint_due": sum(1 for m in maintenance_status()[1] if m["due"]) if is_admin() else 0,
             "known_manufacturers": known_manufacturers, "known_locations": known_locations, "list_url": list_url,
-            "creality_tag": creality_tag}
+            "creality_tag": creality_tag, "app_update": pending_app_update()}
 
 
 # --- страницы ---------------------------------------------------------------
@@ -434,6 +434,41 @@ def find_by_creality_tag(info):
         if d < COLOR_NEAR:
             near.append((d, r))
     return None, [spool_view(r) for _, r in sorted(near, key=lambda x: x[0])[:12]]
+
+
+def version_key(v):
+    """'v0.12' → (0, 12); всё нечисловое — 0 (сборки без метки, 'dev', считаются старыми)."""
+    return tuple(int(p) if p.isdigit() else 0 for p in re.findall(r"\d+|[^\d.]+", (v or "").lstrip("vV"))
+                 if p != ".") or (0,)
+
+
+def pending_app_update():
+    """Найденное обновление приложения (только на телефоне и только если новее установленного), иначе None."""
+    if not PHONE:
+        return None
+    upd = load_config().get("app_update")
+    current = os.environ.get("FILAMENT_APP_VERSION", "")
+    return upd if upd and upd.get("apk") and version_key(upd.get("version")) > version_key(current) else None
+
+
+def parse_changelog(text):
+    """CHANGELOG.md -> [{'version', 'date', 'items'}], новые сверху (как в файле)."""
+    out = []
+    for line in (text or "").splitlines():
+        m = re.match(r"##\s+(v[\d.]+)\s*(?:—|-)?\s*([\d-]*)", line)
+        if m:
+            out.append({"version": m.group(1), "date": m.group(2), "items": []})
+        elif out and line.startswith("- "):
+            out[-1]["items"].append(line[2:].strip())
+    return out
+
+
+def changelog():
+    try:
+        with open(os.path.join(BASE_DIR, "CHANGELOG.md"), encoding="utf-8") as f:
+            return parse_changelog(f.read())
+    except OSError:
+        return []
 
 
 def creality_tag(spool):

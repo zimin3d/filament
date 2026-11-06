@@ -11,6 +11,7 @@ import time
 
 SYNC_EVERY = 15 * 60
 PRINTER_EVERY = 60
+UPDATE_EVERY = 12 * 3600
 _url = None
 _lock = threading.Lock()
 
@@ -32,6 +33,7 @@ def start(data_dir, version=""):
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         threading.Thread(target=_auto_sync, args=(app,), daemon=True).start()
         threading.Thread(target=_printer_poll, args=(app,), daemon=True).start()
+        threading.Thread(target=_update_check, args=(app,), daemon=True).start()
         _url = "http://127.0.0.1:%d/phone-start?key=%s" % (srv.server_port, key)
         return _url
 
@@ -47,6 +49,18 @@ def _auto_sync(app):
             except Exception as e:  # нет сети и т.п. — попробуем позже
                 print("sync:", e)
         time.sleep(SYNC_EVERY)
+
+
+def _update_check(app):
+    """Новая версия на GitHub — при запуске и раз в 12 часов; итог в config, плашку рисуют страницы."""
+    time.sleep(20)
+    while True:
+        try:
+            with app.app.test_request_context():
+                app.views.sync.remember_update(app.views.sync.check_app_update())
+        except Exception as e:  # нет сети — попробуем позже
+            print("update:", e)
+        time.sleep(UPDATE_EVERY)
 
 
 def _printer_poll(app):

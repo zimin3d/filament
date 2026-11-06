@@ -19,13 +19,8 @@ import sync
 SYNC_TIMEOUT = 60
 RELEASES_URL = "https://github.com/zimin3d/filament/releases/latest"  # APK для Android
 RELEASES_API = "https://api.github.com/repos/zimin3d/filament/releases/latest"
+CHANGELOG_RAW = "https://raw.githubusercontent.com/zimin3d/filament/%s/CHANGELOG.md"  # % тег выпуска
 APK_PREFIX = "https://github.com/zimin3d/filament/releases/download/"  # только отсюда приложение скачает APK
-
-
-def version_key(v):
-    """'v0.12' → (0, 12); всё нечисловое — 0 (сборки без метки, 'dev', считаются старыми)."""
-    return tuple(int(p) if p.isdigit() else 0 for p in re.findall(r"\d+|[^\d.]+", (v or "").lstrip("vV"))
-                 if p != ".") or (0,)
 
 
 def check_app_update(fetch=None):
@@ -42,8 +37,21 @@ def check_app_update(fetch=None):
     if apk and not apk.startswith(APK_PREFIX):
         apk = None
     current = os.environ.get("FILAMENT_APP_VERSION", "")
-    return {"version": tag, "apk": apk, "current": current,
-            "newer": bool(apk) and version_key(tag) > version_key(current)}
+    newer = bool(apk) and version_key(tag) > version_key(current)
+    notes = []
+    if newer and re.fullmatch(r"v[\d.]+", tag):  # что нового — записи CHANGELOG новее установленной версии
+        try:
+            notes = [v for v in parse_changelog(fetch(CHANGELOG_RAW % tag).decode("utf-8", "replace"))
+                     if version_key(v["version"]) > version_key(current)][:10]
+        except (OSError, ValueError):
+            notes = []  # описание не главное — обновиться можно и без него
+    return {"version": tag, "apk": apk, "current": current, "newer": newer, "notes": notes,
+            "checked": time.strftime("%Y-%m-%d %H:%M")}
+
+
+def remember_update(upd):
+    """Итог проверки — в config: по нему плашка «Доступна новая версия» на всех страницах приложения."""
+    update_config(app_update={k: upd[k] for k in ("version", "apk", "notes", "checked")} if upd["newer"] else None)
 _running = threading.Lock()  # автосинхронизация и кнопка не должны идти одновременно
 
 
@@ -200,6 +208,12 @@ def sync_summary(r):
 
 # --- страницы ---------------------------------------------------------------
 
+@app.route("/changes")
+def changes():
+    """Что нового: история версий (CHANGELOG.md, приходит вместе с приложением) и найденное обновление."""
+    return render_template("changes.html", versions=changelog(), current=os.environ.get("FILAMENT_APP_VERSION", ""))
+
+
 @app.route("/app-update/install")
 @admin_required
 def app_update_install():
@@ -261,10 +275,11 @@ def sync_page():
             except (OSError, ValueError) as e:
                 flash("Не удалось проверить: %s" % (getattr(e, "reason", None) or e), "error")
                 return redirect(url_for("sync_page"))
+            remember_update(upd)
             if not upd["newer"]:
                 flash("Установлена последняя версия (%s)." % (upd["current"] or "?"), "ok")
                 return redirect(url_for("sync_page"))
-            return render_sync(db, cfg, update=upd)
+            return redirect(url_for("changes"))
         elif not PHONE and action == "token":
             cfg["sync_token"] = secrets.token_urlsafe(24)
             save_config(cfg)

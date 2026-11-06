@@ -73,6 +73,7 @@
   </div>
   <div class="nav-group nav-foot">
     <a class="nav-i" href="{{ url_for('help_page') }}"{% if request.endpoint == 'help_page' %} aria-current="page"{% endif %}>{{ icon('help') }}Справка</a>
+    <a class="nav-i" href="{{ url_for('changes') }}"{% if request.endpoint == 'changes' %} aria-current="page"{% endif %}>{{ icon('list') }}Что нового{{ badge('update', 1 if app_update else 0) }}</a>
     {% set th = {'light': ('sun', 'Тема: светлая'), 'system': ('monitor', 'Тема: как в системе')}.get(theme, ('moon', 'Тема: тёмная')) %}
     <a class="nav-i" href="{{ url_for('theme', next=request.script_root + request.full_path) }}" title="Нажмите, чтобы сменить тему">{{ icon(th[0]) }}{{ th[1] }}</a>
     {% if is_admin %}

@@ -12,7 +12,7 @@ if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
 else
     MODS=("$ROOT"/*.py)
 fi
-cp "${MODS[@]}" "$ROOT/android/launcher.py" "$PY/"
+cp "${MODS[@]}" "$ROOT/android/launcher.py" "$ROOT/CHANGELOG.md" "$PY/"
 cp -r "$ROOT"/{views,templates,static,fonts} "$PY/"
 mkdir -p "$PY/agent" && cp "$ROOT/agent/k2_agent.py" "$PY/agent/"  # разбор истории Moonraker
 find "$PY" -name __pycache__ -prune -exec rm -rf {} +
