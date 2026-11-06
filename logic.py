@@ -400,10 +400,11 @@ CREALITY_MATERIALS = {
 
 
 def parse_creality_tag(text):
-    """48 символов сектора 1 (расшифрованных приложением) -> поля, или None, если это не метка CFS."""
-    if not re.fullmatch(r"[0-9A-Za-z]{48}", text or ""):
+    """Сектор 1 (расшифрованный приложением) -> поля, или None, если это не метка CFS.
+    Значимы первые 40 символов: у заводских меток Creality хвост — пробелы или нули (у нас — 14 нулей резерва)."""
+    if not re.match(r"[0-9A-Za-z]{40}", text or ""):
         return None
-    text = text.upper()
+    text = text[:48].upper()
     mid, color = text[12:17], text[18:24]
     generic = {v: k for k, v in CREALITY_MATERIAL_IDS.items()}.get(mid)
     brand, name, mtype = CREALITY_MATERIALS.get(mid) or ("", generic or "", (generic or "").replace("-SILK", " Silk"))

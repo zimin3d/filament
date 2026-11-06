@@ -969,6 +969,11 @@ def test_scan_rfid(admin, monkeypatch):
     assert "material=PLA" in html and "color_hex=%23C12E1F" in html and "weight_total=500" in html
     form = admin.get("/spool/new?material=PLA&color_hex=%23C12E1F&weight_total=500").get_data(as_text=True)
     assert 'value="PLA"' in form and 'value="#C12E1F"' in form and 'name="weight_total" value="500"' in form
+    real = "AB1240276A21010010C12E1F0165000001000000" + "        "  # настоящая: 40 символов + пробелы
+    html = admin.get("/scan/rfid", query_string={"tag": real}).get_data(as_text=True)
+    assert "Hyper PLA" in html and "#C12E1F" in html
+    dots = "AB1240276A21010010C12E1F0165000001000000" + "." * 8  # хвост из нулевых байтов (приложение даёт «.»)
+    assert "Hyper PLA" in admin.get("/scan/rfid", query_string={"tag": dots}).get_data(as_text=True)
     r = admin.get("/scan/rfid?tag=garbage")
     assert r.status_code == 302 and "не метка Creality" in flashes(admin, r)[0][1]
     monkeypatch.setattr(logic, "PHONE", True)

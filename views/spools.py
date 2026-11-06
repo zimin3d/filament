@@ -166,7 +166,8 @@ def scan_rfid():
     """Приложение прочитало метку CFS (48 символов) — открываем катушку или показываем похожие."""
     info = parse_creality_tag(request.args.get("tag", ""))
     if info is None:
-        flash("Метка прочитана, но это не метка Creality CFS (или она пустая).", "error")
+        flash("Метка прочитана, но это не метка Creality CFS (или она пустая). Прочитано: «%s»"
+              % request.args.get("tag", "")[:60], "error")
         return redirect(url_for("scan"))
     exact, near = find_by_creality_tag(info)
     if exact:
