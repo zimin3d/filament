@@ -141,7 +141,7 @@ main { max-width: var(--w-content); margin: 0 auto; padding: 16px 16px calc(var(
 .subnav::-webkit-scrollbar { display: none; }
 .picking .subnav { position: static; }
 
-.tabbar { position: fixed; inset: auto 0 0 0; z-index: 30; display: grid; grid-template-columns: repeat(5, 1fr);
+.tabbar { position: fixed; inset: auto 0 0 0; z-index: 30; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
           height: calc(var(--h-tabbar) + env(safe-area-inset-bottom, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px);
           background: var(--surface); border-top: 1px solid var(--border); }
 .tab { position: relative; display: grid; justify-items: center; align-content: center; gap: 4px; min-height: var(--tap);

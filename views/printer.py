@@ -67,12 +67,11 @@ def import_history():
 
 
 @app.route("/printer", methods=["GET", "POST"])
+@admin_required
 def printer():
     """Обслуживание принтера: наработка из журнала печатей и регламент «раз в N часов / дней»."""
     db = get_db()
     if request.method == "POST":
-        if not is_admin():
-            abort(403)
         action, mid = request.form.get("action"), request.form.get("id", type=int)
         if action == "done":
             db.execute("UPDATE maintenance SET last_date = ?, last_hours = ? WHERE id = ?",
@@ -247,6 +246,7 @@ def job_delete(job_id):
 
 
 @app.route("/jobs")
+@admin_required
 def jobs():
     rows = [dict(r) for r in get_db().execute(
         "SELECT j.*, s.number, s.material, s.color_name, s.color_hex, s.manufacturer, "

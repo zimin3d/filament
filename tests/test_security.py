@@ -174,3 +174,53 @@ def test_phone_sync_https_only(monkeypatch):
     with filament.app.test_request_context():
         with pytest.raises(ValueError, match="https"):
             vs.run_sync()
+
+
+def test_every_change_needs_login(anon, admin):
+    """Ни один маршрут, который что-то меняет (POST/PUT/DELETE), не работает без входа.
+    CSRF-токен верный — проверяется именно авторизация. Новая функция без защиты уронит этот тест."""
+    import re as _re
+    allowed = {  # открыты намеренно; у каждого своя защита
+        "login": "вход", "logout": "выход — только чистит свою сессию",
+        "slice_parse_any": "разбор текста файла слайсера, ничего не пишет",
+        "api_printer_job": "Bearer-токен агента", "api_sync": "Bearer-токен синхронизации",
+        "api_sync_file": "Bearer-токен синхронизации",
+    }
+    sid = add_spool(admin)  # есть что ломать: катушка, печать, расход
+    admin.post("/spool/%d/prints" % sid, data={"csrf": "t", "grams": "10", "caption": "x"})
+    with anon.session_transaction() as s:
+        s["csrf"] = "t"
+    with filament.app.app_context():
+        db = filament.get_db()
+        tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")]
+        before = {t: db.execute("SELECT COUNT(*) FROM %s" % t).fetchone()[0] for t in tables if t != "login_fails"}
+    checked = 0
+    for rule in filament.app.url_map.iter_rules():
+        methods = rule.methods & {"POST", "PUT", "DELETE"}
+        if not methods or rule.endpoint in allowed:
+            continue
+        url = _re.sub(r"<(?:int:)?([^>]+)>", lambda m: "1" if "int:" in m.group(0) else "x", rule.rule)
+        for m in methods:
+            r = anon.open(url, method=m, data={"csrf": "t", "action": "delete", "id": "1"})
+            assert r.status_code in (302, 400, 403, 405), (rule.rule, m, r.status_code)
+            if r.status_code == 302:
+                assert "/login" in r.location, (rule.rule, r.location)
+            checked += 1
+    assert checked >= 30
+    for rule in filament.app.url_map.iter_rules():  # и GET без входа ничего не меняет
+        if "GET" in rule.methods and rule.endpoint != "static":
+            url = _re.sub(r"<(?:int:)?([^>]+)>", lambda m: "1" if "int:" in m.group(0) else "x", rule.rule)
+            assert anon.get(url).status_code < 500, url
+    with filament.app.app_context():
+        db = filament.get_db()
+        after = {t: db.execute("SELECT COUNT(*) FROM %s" % t).fetchone()[0] for t in tables if t != "login_fails"}
+    assert after == before  # без входа в базе ничего не изменилось
+
+
+def test_printer_info_hidden_from_guests(anon, admin):
+    for path in ("/printer", "/jobs", "/printer/link", "/inbox", "/import-history"):
+        assert anon.get(path).status_code == 302, path
+    html = anon.get("/").get_data(as_text=True)
+    assert 'href="/printer"' not in html and 'href="/jobs"' not in html and ">Принтер<" not in html
+    html = admin.get("/").get_data(as_text=True)
+    assert 'href="/printer"' in html and 'href="/jobs"' in html

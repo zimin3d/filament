@@ -8,8 +8,8 @@ import app as filament
 import importer
 from conftest import ADMIN_PW, add_spool, flashes, jpeg
 
-PAGES = ["/", "/?status=all&sort=number", "/stock", "/profiles", "/jobs", "/labels?status=all", "/export.csv"]
-ADMIN_PAGES = ["/spool/new", "/import", "/profiles/new"]
+PAGES = ["/", "/?status=all&sort=number", "/stock", "/profiles", "/labels?status=all", "/export.csv"]
+ADMIN_PAGES = ["/spool/new", "/import", "/profiles/new", "/jobs", "/printer"]  # печати и принтер — не для гостей
 
 
 # --- страницы и доступ ---------------------------------------------------------
@@ -754,11 +754,11 @@ def test_printer_maintenance(admin, anon, db):
     db.commit()
     assert 'data-badge="maint">1<' in admin.get("/").get_data(as_text=True)
     assert admin.post("/printer", data={"csrf": "t", "action": "add", "name": "x"}).status_code == 302
-    assert anon.get("/printer").status_code == 200 and "✓ Сделано" not in anon.get("/printer").get_data(as_text=True)
+    assert anon.get("/printer").status_code == 302  # обслуживание принтера — только после входа
     anon.get("/login")
     with anon.session_transaction() as s:
         tok = s["csrf"]
-    assert anon.post("/printer", data={"csrf": tok, "action": "done", "id": table}).status_code == 403
+    assert anon.post("/printer", data={"csrf": tok, "action": "done", "id": table}).status_code == 302  # на вход
 
 
 def test_thermal_labels(admin, anon):

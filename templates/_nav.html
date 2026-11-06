@@ -23,7 +23,7 @@
   {%- elif sec == 'print' -%}
     {%- set _ = out.append(('enough', 'Хватит ли?', 'scale', url_for('enough'), 0)) -%}
     {%- set _ = out.append(('cfs', 'Подбор в CFS', 'grid', url_for('cfs'), 0)) -%}
-    {%- set _ = out.append(('jobs', 'Журнал печатей', 'list', url_for('jobs'), 0)) -%}
+    {%- if is_admin %}{% set _ = out.append(('jobs', 'Журнал печатей', 'list', url_for('jobs'), 0)) %}{% endif -%}
     {%- set _ = out.append(('gallery', 'Галерея', 'image', url_for('gallery'), 0)) -%}
     {%- set _ = out.append(('stl_local', 'Просмотр STL', 'box', url_for('stl_local'), 0)) -%}
     {%- set _ = out.append(('profiles', 'Настройки печати', 'sliders', url_for('profiles'), 0)) -%}
@@ -49,7 +49,7 @@
   <div class="grabber" aria-hidden="true"></div>
   <a class="nav-brand" href="{{ url_for('index') }}">{{ icon('spool', 'ic logo') }}Филамент</a>
   {% if is_admin %}<a class="btn primary nav-add" href="{{ url_for('spool_new') }}">{{ icon('plus') }}Катушка</a>{% endif %}
-  {% for sec, title in [('spools', 'Катушки'), ('print', 'Печать'), ('printer', 'Принтер')] %}
+  {% for sec, title in [('spools', 'Катушки'), ('print', 'Печать')] + ([('printer', 'Принтер')] if is_admin else []) %}
   <div class="nav-group"><div class="nav-h">{{ title }}</div>
     {% call(list) items(sec) %}{% for ep, label, ic, href, n in list %}
     <a class="nav-i" href="{{ href }}"{% if request.endpoint == ep %} aria-current="page"{% endif %}>{{ icon(ic) }}{{ label }}{{ badge(BADGE.get(ep, ep), n) }}</a>
@@ -107,7 +107,7 @@
   <a class="tab" href="{{ url_for('index') }}"{% if section == 'spools' %} aria-current="true"{% endif %}><span class="ic-wrap">{{ icon('spool') }}</span>Катушки</a>
   <a class="tab" href="{{ url_for('enough') }}"{% if section == 'print' %} aria-current="true"{% endif %}><span class="ic-wrap">{{ icon('layers') }}</span>Печать</a>
   <a class="tab scan" href="{{ url_for('scan') }}"{% if section == 'scan' %} aria-current="true"{% endif %}><span class="ic-wrap">{{ icon('scan') }}</span>Сканер</a>
-  <a class="tab" href="{{ url_for('printer') }}"{% if section == 'printer' %} aria-current="true"{% endif %}{% if attn %} aria-label="Принтер, требует внимания: {{ attn }}"{% endif %}><span class="ic-wrap">{{ icon('printer') }}{{ badge('printer', attn) }}</span>Принтер</a>
+  {% if is_admin %}<a class="tab" href="{{ url_for('printer') }}"{% if section == 'printer' %} aria-current="true"{% endif %}{% if attn %} aria-label="Принтер, требует внимания: {{ attn }}"{% endif %}><span class="ic-wrap">{{ icon('printer') }}{{ badge('printer', attn) }}</span>Принтер</a>{% endif %}
   <button class="tab nav-toggle" type="button" aria-expanded="false" aria-controls="mainnav"{% if section == 'more' %} aria-current="true"{% endif %}><span class="ic-wrap">{{ icon('more') }}</span>Ещё</button>
 </nav>
 {% endmacro %}
