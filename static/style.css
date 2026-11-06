@@ -529,6 +529,7 @@ dt { color: var(--text-2); } dd { margin: 0; overflow-wrap: anywhere; }
 .hbar.maint span { background: var(--ok); } .hbar.maint.soon span { background: var(--warn); } .hbar.maint.due span { background: var(--danger); }
 .chg { overflow-wrap: anywhere; } .chg s { color: var(--text-3); }
 .import-thumb { width: 48px; height: 48px; object-fit: cover; border-radius: var(--r-sm); display: block; }
+.tbl.files .import-thumb { width: 64px; height: 64px; object-fit: contain; background: var(--thumb-bg); }
 /* телефон: строки таблиц-списков — карточками */
 @media (max-width: 559px) {
   .table-wrap:has(.tbl.stack) { overflow: visible; }
@@ -571,7 +572,7 @@ h2.first { margin-top: 0; }
 .finished { line-height: 2; }
 .threshold label.check { font-weight: 400; } .threshold input { width: 90px; }
 @media (max-width: 559px) {
-  .tbl.stack.jobs td.pic { order: -1; }
+  .tbl.stack.jobs td.pic, .tbl.stack.files td.pic { order: -1; }
   .tbl.stack.jobs td.day { order: 1; flex-basis: 100%; font-size: .75rem; }
   .tbl.stack td.changes { flex-basis: 100%; }
 }

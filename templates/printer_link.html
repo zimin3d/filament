@@ -47,9 +47,10 @@
 {% endif %}
 <h2>Файлы на принтере</h2>
 {% if files %}
-<div class="table-wrap"><table class="tbl stack">
+<div class="table-wrap"><table class="tbl stack files">
   <tbody>{% for f in files %}
-    <tr><td class="primary">{{ f.path }}</td>
+    <tr><td class="pic"><img class="import-thumb" src="{{ url_for('printer_thumb', file=f.path, m=f.modified) }}" alt="" loading="lazy" data-drop-broken></td>
+      <td class="primary">{{ f.path }}</td>
       <td class="n t2">{{ '%.1f'|format((f.size or 0) / 1048576) }} МБ</td>
       <td class="n t2">{{ f.modified|ts_date if f.modified else '' }}</td>
       <td class="end">{% if live.raw_state not in ('printing', 'paused') %}<form method="post" class="inline"

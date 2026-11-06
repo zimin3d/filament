@@ -9,6 +9,7 @@ import app as filament
 from conftest import add_spool, flashes
 
 NOW = time.time()
+PNG = b"\x89PNG\r\n\x1a\n"
 HISTORY = [  # новые сверху, как отдаёт Moonraker
     {"job_id": "000B", "status": "completed", "filename": "cube.gcode", "end_time": NOW + 60, "print_duration": 1800,
      "filament_used": 1000, "metadata": {"filament_weight_total": 12.5}},
@@ -44,6 +45,18 @@ class Moonraker(BaseHTTPRequestHandler):
             body = {"result": [{"path": "old.gcode", "modified": NOW - 99, "size": 1048576},
                                {"path": "Тест кубик.gcode", "modified": NOW, "size": 2097152},
                                {"path": "notes.txt", "modified": NOW, "size": 10}]}
+        elif self.path.startswith("/server/files/metadata"):
+            thumbs = [{"width": 32, "height": 32, "relative_path": ".thumbs/cube-32x32.png"},
+                      {"width": 300, "height": 300, "relative_path": ".thumbs/cube-300x300.png"}]
+            body = {"result": {"thumbnails": thumbs if "old" not in self.path else []}}
+        elif self.path.startswith("/server/files/gcodes/.thumbs/"):
+            Moonraker.thumb_path = self.path
+            data = PNG + self.path.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.end_headers()
+            self.wfile.write(data)
+            return
         elif self.path.startswith("/printer/info"):
             body = {"result": {"state": "ready", "hostname": "K2"}}
         elif self.path.startswith("/server/history/list"):
@@ -159,5 +172,22 @@ def test_printer_start_upload_cancel(admin, anon, printer):
         admin.post("/printer/link", data={"csrf": "t", "action": "cancel"})
         assert Moonraker.posts[-1][0] == "/printer/print/cancel"
         assert anon.post("/printer/link", data={"action": "cancel"}).status_code in (302, 400)  # без входа — нет
+    finally:
+        Moonraker.STATE = "printing"
+
+
+def test_printer_thumbnails(admin, anon, printer):
+    """Предпросмотр файла: Moonraker отдаёт миниатюры, берём 300x300 через свой адрес; нет — 404, картинка скрывается."""
+    admin.post("/printer/link", data={"csrf": "t", "action": "save", "host": "127.0.0.1", "port": str(printer)})
+    Moonraker.STATE = "standby"
+    try:
+        html = admin.get("/printer/link").get_data(as_text=True)
+        assert "/printer/thumb?file=" in html and "data-drop-broken" in html
+        r = admin.get("/printer/thumb", query_string={"file": "Тест кубик.gcode", "m": "1"})
+        assert r.status_code == 200 and r.mimetype == "image/png" and r.data.startswith(PNG)
+        assert Moonraker.thumb_path.endswith("cube-300x300.png")  # крупная, а не 32x32
+        assert admin.get("/printer/thumb", query_string={"file": "old.gcode", "m": "1"}).status_code == 404
+        assert admin.get("/printer/thumb", query_string={"file": "../x.gcode"}).status_code == 404
+        assert anon.get("/printer/thumb", query_string={"file": "Тест кубик.gcode"}).status_code == 302
     finally:
         Moonraker.STATE = "printing"

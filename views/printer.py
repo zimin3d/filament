@@ -1,4 +1,5 @@
 """Принтер: API агента, входящие задания, импорт истории, обслуживание, разбор файлов слайсера."""
+import functools
 import json
 import os
 import re
@@ -299,6 +300,47 @@ def printer_files(cfg):
     files = moonraker("/server/files/list?root=gcodes", cfg)
     files = [f for f in files if isinstance(f, dict) and PRINT_FILE.fullmatch(str(f.get("path", "")))] if isinstance(files, list) else []
     return sorted(files, key=lambda f: -float(f.get("modified") or 0))[:40]
+
+
+@functools.lru_cache(maxsize=64)
+def printer_thumb_bytes(base, name, modified):
+    """Миниатюра G-code с принтера (её вырезает Moonraker из файла). modified — в ключе кэша: файл заменили — новая."""
+    import posixpath
+    import urllib.parse
+    import urllib.request
+    with urllib.request.urlopen(base + "/server/files/metadata?filename=" + urllib.parse.quote(name),
+                                timeout=PRINTER_TIMEOUT) as r:
+        meta = json.loads(r.read(2_000_000)).get("result") or {}
+    thumbs = [t for t in meta.get("thumbnails") or [] if isinstance(t, dict) and t.get("relative_path")]
+    if not thumbs:
+        return b""
+    # самая крупная до 400 px (обычно 300x300), иначе самая мелкая из имеющихся
+    fit = [t for t in thumbs if int(t.get("width") or 0) <= 400]
+    t = max(fit, key=lambda t: int(t.get("width") or 0)) if fit else min(thumbs, key=lambda t: int(t.get("width") or 0))
+    rel = posixpath.normpath(posixpath.join(posixpath.dirname(name), str(t["relative_path"])))
+    if rel.startswith(("..", "/")):
+        return b""
+    with urllib.request.urlopen(base + "/server/files/gcodes/" + urllib.parse.quote(rel), timeout=PRINTER_TIMEOUT) as r:
+        data = r.read(2_000_000)
+    return data if data[:8] == b"\x89PNG\r\n\x1a\n" or data[:3] == b"\xff\xd8\xff" else b""
+
+
+@app.route("/printer/thumb")
+@admin_required
+def printer_thumb():
+    """Картинка предпросмотра файла на принтере — через нас (браузер грузит картинки только со своего адреса)."""
+    cfg, name = load_config(), request.args.get("file", "")
+    if is_bambu(cfg) or not printer_addr(cfg) or ".." in name or not PRINT_FILE.fullmatch(name):
+        abort(404)
+    try:
+        data = printer_thumb_bytes(printer_addr(cfg), name, request.args.get("m", ""))
+    except (OSError, ValueError):
+        abort(404)
+    if not data:
+        abort(404)
+    resp = app.response_class(data, mimetype="image/png" if data[:4] == b"\x89PNG" else "image/jpeg")
+    resp.headers["Cache-Control"] = "private, max-age=86400"
+    return resp
 
 
 def printer_control(cfg):
