@@ -43,6 +43,11 @@ class MainActivity : ComponentActivity() {
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private var cameraUri: Uri? = null
     private var pendingPermission: PermissionRequest? = null
+    @Volatile private var serverPort: Int = -1
+    private var waitingDialog: AlertDialog? = null
+
+    private fun isLocalAppUrl(u: Uri?): Boolean =
+        u != null && u.scheme == "http" && u.host == "127.0.0.1" && serverPort > 0 && u.port == serverPort
 
     private val pickFiles = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
         var uris = WebChromeClient.FileChooserParams.parseResult(res.resultCode, res.data)
@@ -68,7 +73,7 @@ class MainActivity : ComponentActivity() {
         web.settings.allowFileAccess = false
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                if (request.url.host == "127.0.0.1") {
+                if (isLocalAppUrl(request.url)) {
                     if (request.url.path?.endsWith("/app-update/install") == true) {
                         request.url.getQueryParameter("url")?.let { openUpdate(it) }
                         return true
@@ -116,7 +121,7 @@ class MainActivity : ComponentActivity() {
                 return try {
                     pickFiles.launch(chooser(params))
                     true
-                } catch (_: ActivityNotFoundException) {
+                } catch (_: Exception) {
                     fileCallback = null
                     false
                 }
@@ -129,6 +134,7 @@ class MainActivity : ComponentActivity() {
                 } else if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                     request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
                 } else {
+                    pendingPermission?.deny()
                     pendingPermission = request
                     askCamera.launch(Manifest.permission.CAMERA)
                 }
@@ -147,12 +153,30 @@ class MainActivity : ComponentActivity() {
         setSystemBars(0x16, 0x19, 0x1E)  // до первой страницы — как экран «Запуск…» и тёмная тема по умолчанию
         web.loadData("<body style='margin:0;background:#16191E'><p style='font:18px sans-serif;padding:2em;color:#A3AAB5'>Запуск…</p></body>", "text/html; charset=utf-8", null)
         thread {
-            if (!Python.isStarted()) Python.start(AndroidPlatform(this))
-            val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
-            val url = Python.getInstance().getModule("launcher")
-                .callAttr("start", File(filesDir, "data").path, version).toString()
-            runOnUiThread { web.loadUrl(url) }
+            try {
+                if (!Python.isStarted()) Python.start(AndroidPlatform(this))
+                val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+                val url = Python.getInstance().getModule("launcher")
+                    .callAttr("start", File(filesDir, "data").path, version).toString()
+                serverPort = Uri.parse(url).port
+                runOnUiThread { if (!isFinishing && !isDestroyed) web.loadUrl(url) }
+            } catch (e: Exception) {
+                val msg = android.text.TextUtils.htmlEncode(e.message ?: e.javaClass.simpleName)
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        web.loadData("<body style='margin:0;background:#16191E;color:#FF6B6B;font:16px sans-serif;padding:2em'>Ошибка запуска: $msg</body>",
+                            "text/html; charset=utf-8", null)
+                    }
+                }
+            }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try { NfcAdapter.getDefaultAdapter(this)?.disableReaderMode(this) } catch (_: Exception) {}
+        waitingDialog?.dismiss()
+        waitingDialog = null
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -209,15 +233,21 @@ class MainActivity : ComponentActivity() {
             try { startActivity(Intent(Settings.ACTION_NFC_SETTINGS)) } catch (_: ActivityNotFoundException) {}
             return
         }
+        waitingDialog?.dismiss()
         val waiting = AlertDialog.Builder(this)
             .setTitle(title)
             .setMessage("Поднесите метку к задней крышке телефона и держите, пока не появится результат (до нескольких секунд).")
-            .setNegativeButton("Отмена") { _, _ -> nfc.disableReaderMode(this) }
-            .setOnCancelListener { nfc.disableReaderMode(this) }
+            .setNegativeButton("Отмена") { _, _ -> nfc.disableReaderMode(this); waitingDialog = null }
+            .setOnCancelListener { nfc.disableReaderMode(this); waitingDialog = null }
             .show()
+        waitingDialog = waiting
         nfc.enableReaderMode(this, { tag ->
             try { onTag(tag) } finally {
-                runOnUiThread { nfc.disableReaderMode(this); waiting.dismiss() }
+                runOnUiThread {
+                    try { nfc.disableReaderMode(this) } catch (_: Exception) {}
+                    if (!isFinishing && !isDestroyed && waiting.isShowing) waiting.dismiss()
+                    if (waitingDialog === waiting) waitingDialog = null
+                }
             }
         }, NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK, null)
     }
@@ -228,8 +258,15 @@ class MainActivity : ComponentActivity() {
         val stamped = "$title — ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}\n" +
             "Приложение ${packageManager.getPackageInfo(packageName, 0).versionName}, Android ${android.os.Build.VERSION.RELEASE}, " +
             "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}\n$report"
-        try { File(filesDir, "nfc.log").appendText(stamped + "\n\n") } catch (_: Exception) {}
-        runOnUiThread { showReport(title, stamped) }
+        try {
+            val logFile = File(filesDir, "nfc.log")
+            logFile.appendText(stamped + "\n\n")
+            if (logFile.length() > 65_536) {
+                val tail = logFile.readText().takeLast(32_768)
+                logFile.writeText(tail)
+            }
+        } catch (_: Exception) {}
+        runOnUiThread { if (!isFinishing && !isDestroyed) showReport(title, stamped) }
     }
 
     /** Протокол на экран: выделяемый текст, «Скопировать», «Поделиться» (Telegram и т.п.). */
@@ -259,6 +296,8 @@ class MainActivity : ComponentActivity() {
         val wantsImage = params.acceptTypes.any { it.startsWith("image") }
         if (!wantsImage || packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY).not()) return pick
         val dir = File(cacheDir, "camera").apply { mkdirs() }
+        val cutoff = System.currentTimeMillis() - 3_600_000L
+        dir.listFiles()?.forEach { if (it.lastModified() < cutoff) it.delete() }
         val photo = File.createTempFile("photo", ".jpg", dir)
         cameraUri = FileProvider.getUriForFile(this, "$packageName.files", photo)
         val camera = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
@@ -281,23 +320,34 @@ class MainActivity : ComponentActivity() {
 
     /** CSV, этикетки и т.п.: скачиваем со своего сервера (с cookie входа) в «Загрузки». */
     private fun download(url: String, disposition: String?, mime: String?) {
-        // по хосту, не по началу строки: «http://127.0.0.1.evil.com» начинается так же
-        if (Uri.parse(url).let { it.scheme != "http" || it.host != "127.0.0.1" }) return
+        // по схеме, хосту и порту нашего локального сервера
+        if (!isLocalAppUrl(Uri.parse(url))) return
         val name = URLUtil.guessFileName(url, disposition, mime)
         val cookie = CookieManager.getInstance().getCookie(url)
         thread {
+            var conn: HttpURLConnection? = null
             val ok = try {
-                val conn = URL(url).openConnection() as HttpURLConnection
-                if (cookie != null) conn.setRequestProperty("Cookie", cookie)
-                val values = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, name)
-                    put(MediaStore.Downloads.MIME_TYPE, mime ?: conn.contentType ?: "application/octet-stream")
+                conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 10_000
+                    readTimeout = 30_000
+                    if (cookie != null) setRequestProperty("Cookie", cookie)
                 }
-                val target = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)!!
-                conn.inputStream.use { input -> contentResolver.openOutputStream(target)!!.use { input.copyTo(it) } }
+                if (conn.responseCode !in 200..299) return@thread runOnUiThread {
+                    Toast.makeText(this, "Не удалось скачать (HTTP ${conn.responseCode})", Toast.LENGTH_LONG).show()
+                }
+                conn.inputStream.use { input ->
+                    val values = ContentValues().apply {
+                        put(MediaStore.Downloads.DISPLAY_NAME, name)
+                        put(MediaStore.Downloads.MIME_TYPE, mime ?: conn.contentType ?: "application/octet-stream")
+                    }
+                    val target = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)!!
+                    contentResolver.openOutputStream(target)!!.use { input.copyTo(it) }
+                }
                 true
             } catch (e: Exception) {
                 false
+            } finally {
+                conn?.disconnect()
             }
             runOnUiThread {
                 Toast.makeText(this, if (ok) "Сохранено в «Загрузки»: $name" else "Не удалось скачать", Toast.LENGTH_LONG).show()

@@ -2,6 +2,7 @@ package io.github.zimin3d.filament
 
 import android.nfc.Tag
 import android.nfc.tech.MifareClassic
+import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 
@@ -25,7 +26,7 @@ object CfsTag {
     class Retap(msg: String) : IllegalStateException(msg)
 
     /** Какой ключ уже не подошёл к сектору метки («UID:сектор» -> имя ключа): со следующего касания он идёт последним. */
-    private val badKey = HashMap<String, String>()
+    private val badKey = ConcurrentHashMap<String, String>()
 
     /**
      * Открыть сектор. Каждый неверный ключ «усыпляет» метку, поэтому сначала — вероятный: preferUid для сектора 1
@@ -56,6 +57,7 @@ object CfsTag {
         log.appendLine("Технологии: ${tag.techList.joinToString { it.substringAfterLast('.') }}")
         val mfc = MifareClassic.get(tag)
             ?: return log.appendLine("MIFARE Classic: нет (метка другая или телефон её не поддерживает)").toString()
+        if (tag.id.size < 4) return log.appendLine("UID слишком короткий (${tag.id.size} байт) — нужно минимум 4 байта").toString()
         val key = sectorKey(tag.id)
         log.appendLine("MIFARE Classic: тип ${mfc.type}, ${mfc.size} байт, секторов ${mfc.sectorCount}")
         log.appendLine("Ключ из UID: ${key.hex()}")
@@ -91,6 +93,7 @@ object CfsTag {
     fun payload(tag: Tag): String {
         val mfc = MifareClassic.get(tag)
             ?: throw IllegalStateException("Это не MIFARE Classic (или телефон такие не читает)")
+        check(tag.id.size >= 4) { "У метки UID ${tag.id.size} байт — нужно минимум 4 байта" }
         mfc.connect()
         try {
             val how = open(mfc, tag.id, 1, sectorKey(tag.id), preferUid = true)
@@ -103,7 +106,10 @@ object CfsTag {
     }
 
     /** Ключ сектора: первые 4 байта UID по кругу до 16, AES, первые 6 байт. */
-    fun sectorKey(uid: ByteArray): ByteArray = aes(UID_KEY, ByteArray(16) { uid[it % 4] }).copyOf(6)
+    fun sectorKey(uid: ByteArray): ByteArray {
+        require(uid.size >= 4) { "UID должен быть не короче 4 байт" }
+        return aes(UID_KEY, ByteArray(16) { uid[it % 4] }).copyOf(6)
+    }
 
     /** Пишет 48 символов (их собирает сервер, logic.creality_tag); шаги — в log. Исключение — с понятным текстом. */
     fun write(tag: Tag, payload: String, log: StringBuilder) {
