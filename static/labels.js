@@ -26,7 +26,7 @@
   apply();
 
   document.getElementById("print-all").onclick = function () { body.classList.remove("only"); window.print(); };
-  document.querySelectorAll(".one").forEach(function (b) {
+  document.querySelectorAll(".one:not(.png)").forEach(function (b) {
     b.onclick = function () {
       document.querySelectorAll(".slot.chosen").forEach(function (s) { s.classList.remove("chosen"); });
       b.closest(".slot").classList.add("chosen");
@@ -42,7 +42,10 @@
       var w = getComputedStyle(root).getPropertyValue("--w").trim(), h = getComputedStyle(root).getPropertyValue("--h").trim();
       var url = b.dataset.url + "?w=" + w + "&h=" + h;
       b.disabled = true;
-      fetch(url, { credentials: "same-origin" }).then(function (r) { return r.blob(); }).then(function (blob) {
+      fetch(url, { credentials: "same-origin" }).then(function (r) {
+        if (!r.ok) throw new Error(r.status);
+        return r.blob();
+      }).then(function (blob) {
         var file = new File([blob], b.dataset.name, { type: "image/png" });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           return navigator.share({ files: [file], title: "Этикетка" }).catch(function () {});
@@ -50,7 +53,8 @@
         var a = document.createElement("a");
         a.href = URL.createObjectURL(blob); a.download = b.dataset.name; document.body.appendChild(a); a.click();
         setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-      }).finally(function () { b.disabled = false; });
+      }).catch(function () { alert("Не удалось подготовить PNG этикетки."); })
+        .finally(function () { b.disabled = false; });
     };
   });
   if (body.dataset.autoprint) window.addEventListener("load", function () { setTimeout(window.print, 300); });

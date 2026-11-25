@@ -84,9 +84,9 @@
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
   {% if showcase_url %}
   <label style="flex: 1 1 100%">Ссылка<input value="{{ showcase_url }}" readonly data-select-all></label>
-  <a class="btn" href="{{ showcase_url }}" target="_blank">Открыть</a>
-  <button class="btn" name="action" value="new">Новая ссылка</button>
-  <button class="btn danger" name="action" value="off">Выключить</button>
+  <a class="btn" href="{{ showcase_url }}" target="_blank" rel="noopener noreferrer">Открыть</a>
+  <button class="btn" name="action" value="new" data-confirm="Создать новую ссылку? Старая перестанет работать." data-confirm-ok="Создать новую">Новая ссылка</button>
+  <button class="btn danger" name="action" value="off" data-confirm="Выключить публичную витрину? Ссылка перестанет открываться." data-confirm-ok="Выключить" data-confirm-danger>Выключить</button>
   {% else %}
   <button class="btn primary" name="action" value="new">Включить витрину</button>
   {% endif %}

@@ -1,11 +1,12 @@
 // Сервис-воркер: страницы — из сети (данные всегда свежие), при отсутствии сети —
 // последняя сохранённая копия; статика и фото — из кэша.
-const CACHE = "filament-v4";  // v4: редизайн (новые стили, шрифт цифр)
+const CACHE = "filament-v5";  // v5: редизайн + icons.svg/app.js в предкэше
 const scope = self.registration.scope;
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll([scope, scope + "static/style.css", scope + "offline"]))
-    .then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll([
+    scope, scope + "static/style.css", scope + "static/app.js", scope + "static/icons.svg", scope + "offline"
+  ])).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
@@ -15,9 +16,9 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET" || !req.url.startsWith(scope)) return;
   const url = new URL(req.url);
-  // фото и миниатюры не меняются (уникальные имена) — из кэша;
+  // фото и миниатюры не меняются (уникальные имена) — из кэша; крупные STL не кэшируем
   // стили и скрипты — из кэша, но тут же обновляются в фоне
-  const immutable = /\/(thumbs|uploads)\//.test(url.pathname);
+  const immutable = /\/(thumbs|uploads)\//.test(url.pathname) && !/\.stl$/i.test(url.pathname);
   if (immutable || /\/static\//.test(url.pathname)) {
     e.respondWith(caches.open(CACHE).then((c) => c.match(req).then((hit) => {
       if (hit && immutable) return hit;

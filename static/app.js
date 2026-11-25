@@ -16,12 +16,13 @@ document.documentElement.classList.add("js");  // скрытое «до скри
               dlg.querySelector("[value=ok]") && dlg.querySelector("[value=cancel]"));
   }
   function ask(src, form, submitter) {
+    var opener = submitter || document.activeElement;
     dlg.querySelector(".dlg-text").textContent = src.dataset.confirm;
     var ok = dlg.querySelector("[value=ok]");
     ok.textContent = src.dataset.confirmOk || "Да";
     ok.className = "btn " + (src.hasAttribute("data-confirm-danger") ? "danger solid" : "primary");
     dlg.onclose = function () {
-      if (dlg.returnValue !== "ok") return;
+      if (dlg.returnValue !== "ok") { if (opener && opener.focus) opener.focus(); return; }
       confirmed = form;  // обработчик submit срабатывает внутри requestSubmit — сразу и снимаем
       try { form.requestSubmit(submitter || undefined); } finally { confirmed = null; }
     };
@@ -91,9 +92,11 @@ document.documentElement.classList.add("js");  // скрытое «до скри
 
   // лист «Ещё» на телефоне: фокус в лист при открытии, обратно на кнопку при закрытии; Esc закрывает
   function setNav(open) {
-    var btn = document.querySelector(".nav-toggle");
+    var btn = document.querySelector(".nav-toggle"), page = document.querySelector(".page");
+    var mobile = window.matchMedia && window.matchMedia("(max-width: 899px)").matches;
     document.body.classList.toggle("nav-open", open);
     if (btn) btn.setAttribute("aria-expanded", open);
+    if (page) page.inert = Boolean(open && mobile);
     if (open) { var first = document.querySelector("#mainnav .nav-i"); if (first) first.focus({ preventScroll: true }); }
     else if (btn) btn.focus({ preventScroll: true });
   }
@@ -103,6 +106,8 @@ document.documentElement.classList.add("js");  // скрытое «до скри
   // «назад» возвращает страницу из bfcache как была — с открытым листом; закрываем без перевода фокуса
   window.addEventListener("pageshow", function () {
     document.body.classList.remove("nav-open");
+    var page = document.querySelector(".page");
+    if (page) page.inert = false;
     var btn = document.querySelector(".nav-toggle");
     if (btn) btn.setAttribute("aria-expanded", false);
   });

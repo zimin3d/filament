@@ -20,9 +20,9 @@
         <td class="nowrap"><a href="{{ url_for('spool_detail', spool_id=s.id) }}" tabindex="-1"><span class="swatch" style="background: {{ s.swatch }}"></span>
           {{ s.material }} {{ s.color_name|truncate(22, true) }}</a><div class="small muted">{{ s.manufacturer }}</div></td>
         {% for k, label, kind in fields %}
-        <td>{% if kind == 'date' %}<input type="date" name="f_{{ s.id }}_{{ k }}" value="{{ s[k] or '' }}">
-          {% elif kind == 'num' %}<input name="f_{{ s.id }}_{{ k }}" value="{{ s[k]|field_num }}" inputmode="decimal" class="num-m">
-          {% else %}<input name="f_{{ s.id }}_{{ k }}" value="{{ s[k] or '' }}"{% if k == 'number' %} class="num-s"{% endif %}{% if k == 'location' %} list="fill-locs"{% endif %}>{% endif %}</td>
+        <td>{% if kind == 'date' %}<input type="date" name="f_{{ s.id }}_{{ k }}" value="{{ s[k] or '' }}" aria-label="{{ label }} — {{ s.material }} {{ s.color_name }}">
+          {% elif kind == 'num' %}<input name="f_{{ s.id }}_{{ k }}" value="{{ s[k]|field_num }}" inputmode="decimal" class="num-m" aria-label="{{ label }} — {{ s.material }} {{ s.color_name }}">
+          {% else %}<input name="f_{{ s.id }}_{{ k }}" value="{{ s[k] or '' }}" aria-label="{{ label }} — {{ s.material }} {{ s.color_name }}"{% if k == 'number' %} class="num-s"{% endif %}{% if k == 'location' %} list="fill-locs"{% endif %}>{% endif %}</td>
         {% endfor %}
       </tr>
     {% endfor %}

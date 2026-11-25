@@ -2,17 +2,17 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Этикетки</title>
 <style>
   /* размер задаётся из скрипта (--w, --h в мм) и @page; по умолчанию 58×40 */
   :root { --w: 58; --h: 40; }
   body { margin: 0; font: 12px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #000; background: #eee; }
-  .bar { position: sticky; top: 0; z-index: 2; padding: 10px 16px; display: flex; gap: 10px; align-items: center;
+  .bar { position: sticky; top: 0; z-index: 2; padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px; display: flex; gap: 10px; align-items: center;
          flex-wrap: wrap; background: #fff; border-bottom: 1px solid #ddd; }
   .bar a { color: #B04700; text-decoration: none; }
-  .bar .back { border: 1px solid #8E939B; border-radius: 10px; padding: 9px 12px; font-weight: 600; }
-  .bar button, .bar select, .bar input { font: inherit; min-height: 40px; padding: 6px 12px; border: 1px solid #8E939B; border-radius: 10px; background: #fff; }
+  .bar .back { border: 1px solid #8E939B; border-radius: 10px; padding: 9px 12px; font-weight: 600; min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; }
+  .bar button, .bar select, .bar input { font: inherit; font-size: 16px; min-height: 44px; padding: 6px 12px; border: 1px solid #8E939B; border-radius: 10px; background: #fff; }
   .bar button.primary { background: #F06A12; color: #1A0B00; border-color: #F06A12; font-weight: 600; }
   .bar input[type=number] { width: 64px; }
   .bar label { display: inline-flex; gap: 6px; align-items: center; }
@@ -34,6 +34,7 @@
   .small-label .col, .small-label .mf, .small-label .al { display: none; }
   .slot-tools { display: flex; gap: 6px; }
   .one { font: inherit; font-size: 12px; padding: 4px 10px; border: 1px solid #bbb; border-radius: 6px; background: #fff; cursor: pointer; }
+  @media (pointer: coarse) { .one { min-height: 44px; padding: 8px 14px; font-size: 14px; } }
   @media print {
     body { background: #fff; }
     .bar, .one { display: none !important; }
@@ -55,8 +56,8 @@
       {% for w, h in sizes %}<option value="{{ w }}x{{ h }}">{{ w }} × {{ h }} мм</option>{% endfor %}
       <option value="custom">свой размер…</option>
     </select></label>
-  <span id="custom" hidden><input type="number" id="cw" min="15" max="150" step="1" value="58"> ×
-    <input type="number" id="ch" min="10" max="150" step="1" value="40"> мм</span>
+  <span id="custom" hidden><input type="number" id="cw" min="15" max="150" step="1" value="58" aria-label="Ширина этикетки, мм"> ×
+    <input type="number" id="ch" min="10" max="150" step="1" value="40" aria-label="Высота этикетки, мм"> мм</span>
   <label><input type="checkbox" id="color"> цветной кружок</label>
   <span>Этикеток: {{ spools|length }}</span>
   <button class="primary" id="print-all">🖨 Печать{{ ' всех' if spools|length > 1 else '' }}</button>

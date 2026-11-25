@@ -6,7 +6,7 @@
 <div class="report">
 <div class="page-head"><h1>Филамент: отчёт за {{ year }} год</h1>
   <span class="no-print report-tools">
-    {% if years|length > 1 %}<form method="get"><select name="year" data-autosubmit>
+    {% if years|length > 1 %}<form method="get"><select name="year" aria-label="Год отчёта" data-autosubmit>
       {% for y in years %}<option {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></form>{% endif %}
     <button class="btn primary" type="button" data-print>{{ nav.icon('printer') }}Печать / PDF</button>
   </span>

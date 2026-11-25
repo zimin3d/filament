@@ -4,7 +4,12 @@
   var video = document.getElementById("scan-video"), status = document.getElementById("scan-status");
   var base = document.body.dataset.base;  // корень приложения, например /filament/
   var canvas = document.createElement("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
-  var detector = null, stream = null, done = false;
+  var detector = null, stream = null, done = false, detecting = false;
+
+  function stopCamera() {
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+  }
+  window.addEventListener("pagehide", stopCamera);
 
   function target(text) {
     // наши ссылки: …/s/12 или …/spool/12 — на этом же сайте
@@ -22,17 +27,20 @@
     done = true;
     status.textContent = "Открываю…";
     if (navigator.vibrate) navigator.vibrate(60);
-    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+    stopCamera();
     location.href = url;
   }
 
   function tick() {
     if (done) return;
-    if (video.readyState >= 2) {
+    if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
       if (detector) {
-        detector.detect(video).then(function (codes) {
-          if (codes.length) found(codes[0].rawValue);
-        }).catch(function () {});
+        if (!detecting) {
+          detecting = true;
+          detector.detect(video).then(function (codes) {
+            if (codes.length) found(codes[0].rawValue);
+          }).catch(function () {}).finally(function () { detecting = false; });
+        }
       } else if (window.jsQR) {
         var w = video.videoWidth, h = video.videoHeight, k = Math.min(1, 640 / Math.max(w, h));
         canvas.width = Math.round(w * k);

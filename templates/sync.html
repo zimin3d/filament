@@ -55,7 +55,7 @@
 {% else %}<p>Ключа ещё нет.</p>{% endif %}
 <form method="post" class="inline">
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-  <button class="btn{{ '' if has_token else ' primary' }}" name="action" value="token">{{ 'Создать новый ключ' if has_token else 'Создать ключ' }}</button>
+  <button class="btn{{ '' if has_token else ' primary' }}" name="action" value="token"{% if has_token %} data-confirm="Создать новый ключ? Старый перестанет действовать на телефоне." data-confirm-ok="Создать новый" data-confirm-danger{% endif %}>{{ 'Создать новый ключ' if has_token else 'Создать ключ' }}</button>
 </form>
 {% endif %}
 {% endblock %}

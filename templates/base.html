@@ -19,7 +19,7 @@
 </head>
 {% import "_nav.html" as nav with context %}
 <body data-base="{{ url_for('index') }}" data-sw="{{ '' if phone else url_for('service_worker') }}" data-section="{{ nav.section }}"
-      {%- if request.endpoint in ('spool_new', 'spool_edit', 'profile_edit', 'import_start', 'import_preview', 'fill') %} data-form{% endif %}>
+      {%- if request.endpoint in ('spool_new', 'spool_edit', 'profile_edit', 'import_start', 'import_preview', 'fill', 'login') %} data-form{% endif %}>
 <a class="skip" href="#main">К содержимому</a>
 <div class="shell">
 {{ nav.sidebar() }}
@@ -35,7 +35,7 @@
 {{ nav.subnav() }}
 <main id="main">
   {% with msgs = get_flashed_messages(with_categories=true) %}
-    {% for cat, m in msgs %}<div role="status" class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+    {% for cat, m in msgs %}<div role="{{ 'alert' if cat == 'error' else 'status' }}" class="flash {{ cat }}">{{ m }}</div>{% endfor %}
   {% endwith %}
   {% if app_update and request.endpoint not in ('changes', 'sync_page') %}<a class="banner" href="{{ url_for('changes') }}">Доступна версия {{ app_update.version }} — что нового и скачать</a>{% endif %}
   {% block content %}{% endblock %}

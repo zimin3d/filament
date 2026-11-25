@@ -19,7 +19,7 @@
     var sun = new THREE.DirectionalLight(0xffffff, 0.7);
     scene.add(sun);
     var controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
+    controls.enableDamping = !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
     var state = { renderer: renderer, scene: scene, camera: camera, controls: controls, sun: sun,
                   color: color || "#4f8cff", mesh: null, grid: null };
@@ -48,8 +48,8 @@
     box.getCenter(center);
     geometry.translate(-center.x, -center.y, -box.min.z);  // на «стол», по центру
     if (!geometry.attributes.normal) geometry.computeVertexNormals();
-    if (state.mesh) state.scene.remove(state.mesh);
-    if (state.grid) state.scene.remove(state.grid);
+    if (state.mesh) { state.scene.remove(state.mesh); state.mesh.geometry.dispose(); state.mesh.material.dispose(); }
+    if (state.grid) { state.scene.remove(state.grid); state.grid.geometry.dispose(); state.grid.material.dispose(); }
     state.mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial(
       { color: state.color, metalness: 0.1, roughness: 0.6, flatShading: false }));
     state.scene.add(state.mesh);
@@ -82,7 +82,10 @@
     bar.addEventListener("click", function (e) {
       var act = e.target.dataset.act;
       if (!act || !state.mesh) return;
-      if (act === "wire") state.mesh.material.wireframe = !state.mesh.material.wireframe;
+      if (act === "wire") {
+        state.mesh.material.wireframe = !state.mesh.material.wireframe;
+        e.target.setAttribute("aria-pressed", String(state.mesh.material.wireframe));
+      }
       if (act === "reset") {
         var box = new THREE.Box3().setFromObject(state.mesh), size = new THREE.Vector3();
         box.getSize(size);

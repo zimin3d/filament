@@ -56,7 +56,7 @@
       <td class="end">{% if live.raw_state not in ('printing', 'paused') %}<form method="post" class="inline"
           data-confirm="Стол свободен? Запустить печать «{{ f.path }}»?" data-confirm-ok="Печать">
         <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="file" value="{{ f.path }}">
-        <button class="btn sm primary" name="action" value="start">Печать</button></form>{% endif %}</td></tr>
+        <button class="btn sm" name="action" value="start">Печать</button></form>{% endif %}</td></tr>
   {% endfor %}</tbody>
 </table></div>
 {% else %}<p class="empty">На принтере нет файлов G-code.</p>{% endif %}
@@ -64,7 +64,7 @@
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
   <b>Загрузить на принтер</b>
   <label class="grow">Файл .gcode или .gcode.3mf (из слайсера)<input type="file" name="gcode" accept=".gcode,.gco,.3mf" required></label>
-  <label class="check"><input type="checkbox" name="start" value="1" checked>сразу начать печать (стол свободен)</label>
+  <label class="check"><input type="checkbox" name="start" value="1">сразу начать печать (стол свободен)</label>
   <button class="btn primary" name="action" value="upload">Загрузить</button>
 </form>
 {% endif %}

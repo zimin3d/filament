@@ -63,7 +63,7 @@ def test_only_model_is_enough_and_validation(admin, db):
 
 
 def test_local_viewer_and_cleanup(admin, db):
-    assert 'class="stl-local"' in admin.get("/stl").get_data(as_text=True)
+    assert 'class="stl-local sr-only"' in admin.get("/stl").get_data(as_text=True)
     sid = add_spool(admin)
     upload(admin, sid, (binary_stl(1), "a.stl"))
     f = db.execute("SELECT file FROM models").fetchone()[0]

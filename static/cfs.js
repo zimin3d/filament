@@ -5,13 +5,21 @@
   form.querySelectorAll("input[type=color]").forEach(function (c) {
     c.addEventListener("input", function () { c.dataset.empty = "0"; });
   });
-  form.addEventListener("submit", function () {
+  function disableEmptyColors() {
     form.querySelectorAll("input[type=color]").forEach(function (c) { if (c.dataset.empty === "1") c.disabled = true; });
+  }
+  form.addEventListener("submit", disableEmptyColors);
+  window.addEventListener("pageshow", function () {
+    form.querySelectorAll("input[type=color]").forEach(function (c) { c.disabled = false; });
   });
-  document.getElementById("cfs-more").onclick = function () {
+  var more = document.getElementById("cfs-more");
+  function syncMore() { if (more) more.hidden = ![].some.call(rows, function (r) { return r.hidden; }); }
+  if (more) more.onclick = function () {
     var next = [].find.call(rows, function (r) { return r.hidden; });
     if (next) next.hidden = false;
+    syncMore();
   };
+  syncMore();
   form.addEventListener("slice-parsed", function (e) {
     var fil = (e.detail.filaments || []).slice(0, rows.length);
     if (!fil.length) return;
@@ -22,6 +30,7 @@
       m.value = ""; if (f && f.type) [].forEach.call(m.options, function (o) { if (f.type.indexOf(o.value) >= 0 && o.value.length > m.value.length) m.value = o.value; });
       g.value = f && f.grams ? String(f.grams).replace(".", ",") : "";
     });
+    disableEmptyColors();
     form.submit();
   });
 })();

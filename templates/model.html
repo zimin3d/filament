@@ -11,14 +11,14 @@
 {% else %}
 <h1>Просмотр STL</h1>
 <p class="small muted">Файл открывается прямо в браузере и никуда не загружается.</p>
-<label class="btn primary">Выбрать .stl<input type="file" class="stl-local" data-target="stl-local" accept=".stl" hidden></label>
+<label class="btn primary file-btn">Выбрать .stl<input type="file" class="stl-local sr-only" data-target="stl-local" accept=".stl"></label>
 {% endif %}
 <div class="stl-box">
   <div class="stl-tools">
     <button type="button" class="btn" data-act="reset">⟲ Вид</button>
     <button type="button" class="btn" data-act="top">Сверху</button>
-    <button type="button" class="btn" data-act="wire">Сетка</button>
-    <span class="small muted stl-info">{% if not m %}выберите файл{% endif %}</span>
+    <button type="button" class="btn" data-act="wire" aria-pressed="false">Сетка</button>
+    <span class="small muted stl-info" aria-live="polite">{% if not m %}выберите файл{% endif %}</span>
   </div>
   <div class="stl-view" {% if m %}data-url="{{ url_for('uploaded', name=m.file) }}" data-color="{{ m.color_hex if m.color_hex != '#888888' else '#4f8cff' }}"{% else %}id="stl-local"{% endif %}></div>
   <p class="small muted">Вращение — левая кнопка / один палец, сдвиг — правая / два пальца, масштаб — колесо / щипок.</p>
