@@ -335,7 +335,7 @@ def spool_edit(spool_id):
             flash(str(e), "error")
             return render_template("form.html", s=dict(request.form, id=spool_id, photo=row["photo"]), new=False)
         if new_photo or request.form.get("remove_photo"):
-            delete_photo(row["photo"])
+            # старое фото не удаляем сразу — правку можно отменить в /history; лишние уберёт cleanup
             data["photo"] = new_photo
         log_usage(db, row, data["weight_left"], data["weight_total"], data["price"], source="edit")
         sets = ", ".join("%s = ?" % k for k in data)
@@ -446,6 +446,8 @@ def spool_use(spool_id):
 def spool_dried(spool_id):
     db = get_db()
     audit_state = audit_begin(spool_id)
+    if audit_state[0] is None:
+        abort(404)
     db.execute("UPDATE spools SET dried_date = ? WHERE id = ?", (date.today().isoformat(), spool_id))
     audit_end("Высушена", spool_id, audit_state)
     db.commit()
@@ -484,6 +486,8 @@ def spool_reorder(spool_id):
 def spool_arrived(spool_id):
     db = get_db()
     audit_state = audit_begin(spool_id)
+    if audit_state[0] is None:
+        abort(404)
     db.execute("UPDATE spools SET ordered = 0 WHERE id = ?", (spool_id,))
     audit_end("Пришла", spool_id, audit_state)
     db.commit()
@@ -496,9 +500,12 @@ def spool_arrived(spool_id):
 def spool_open(spool_id):
     db = get_db()
     audit_state = audit_begin(spool_id)
-    db.execute("UPDATE spools SET opened_date = ? WHERE id = ? AND opened_date IS NULL",
-               (date.today().isoformat(), spool_id))
-    audit_end("Вскрыта", spool_id, audit_state)
+    if audit_state[0] is None:
+        abort(404)
+    cur = db.execute("UPDATE spools SET opened_date = ? WHERE id = ? AND opened_date IS NULL",
+                     (date.today().isoformat(), spool_id))
+    if cur.rowcount:
+        audit_end("Вскрыта", spool_id, audit_state)
     db.commit()
     flash("Отмечено: вскрыта сегодня.", "ok")
     return redirect(url_for("spool_detail", spool_id=spool_id))

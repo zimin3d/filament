@@ -39,7 +39,7 @@ def render(url, lines, width_mm=40, height_mm=30, dpi=203):
     qr.make(fit=True)
     matrix = qr.get_matrix()
     side = h - 2 * pad
-    module = side // (len(matrix) + 2)  # целое число точек на модуль — без размытия
+    module = max(1, side // (len(matrix) + 2))  # целое число точек на модуль — без размытия
     qr_px = module * (len(matrix) + 2)
     ox, oy = pad, (h - qr_px) // 2
     for y, row in enumerate(matrix):

@@ -162,7 +162,8 @@ def fetch_sheet_photos(url, csv_text):
         return {}
     raw = download(sheet_csv_url(url, "xlsx"), XLSX_MAX_BYTES)
     try:
-        return xlsx_photos(zipfile.ZipFile(io.BytesIO(raw)), csv_text)
+        with zipfile.ZipFile(io.BytesIO(raw)) as z:
+            return xlsx_photos(z, csv_text)
     except (zipfile.BadZipFile, KeyError, ValueError) as e:
         raise SheetError("Не удалось разобрать фото из таблицы: %s" % e)
 
@@ -173,7 +174,7 @@ def _rels(z, part):
     if path not in z.namelist():
         return {}
     base = posixpath.dirname(part)
-    return {m.group(1): posixpath.normpath(posixpath.join(base, m.group(2)))
+    return {m.group(1): posixpath.normpath(posixpath.join(base, m.group(2))).lstrip("/")
             for m in re.finditer(r'<Relationship [^>]*?Id="([^"]+)"[^>]*?Target="([^"]+)"',
                                  z.read(path).decode())}
 

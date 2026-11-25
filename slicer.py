@@ -93,24 +93,36 @@ def _filaments(colors, types, grams):
     return out
 
 
+def _fnum(value):
+    try:
+        v = float(value)
+        return v if v == v and v >= 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 def parse_slice_info(xml):
     """Metadata/slice_info.config из .3mf (Orca, Bambu, Creality Print)."""
     grams = minutes = None
-    per, fil = [], []
+    per, fil, fil_g = [], [], []
     for plate in re.findall(r"<plate>(.*?)</plate>", xml, re.S) or [xml]:
         meta = dict(re.findall(r'<metadata key="([^"]+)" value="([^"]*)"', plate))
-        if meta.get("weight"):
-            grams = (grams or 0) + float(meta["weight"])
-        if meta.get("prediction"):
-            minutes = (minutes or 0) + round(float(meta["prediction"]) / 60)
+        w = _fnum(meta.get("weight"))
+        if w is not None:
+            grams = (grams or 0) + w
+        pred = _fnum(meta.get("prediction"))
+        if pred is not None:
+            minutes = (minutes or 0) + round(pred / 60)
         for tag in re.findall(r"<filament\b([^>]*)/?>", plate):
             attrs = dict(re.findall(r'(\w+)="([^"]*)"', tag))
-            if attrs.get("used_g"):
-                per.append(float(attrs["used_g"]))
+            ug = _fnum(attrs.get("used_g"))
+            if ug is not None:
+                per.append(ug)
                 fil.append(attrs)
+                fil_g.append(ug)
     if grams is None and per:
         grams = sum(per)
     return {"grams": round(grams, 1) if grams else None, "minutes": minutes,
             "per_filament": [round(x, 1) for x in per] if len(per) > 1 else [],
             "filaments": _filaments([f.get("color", "") for f in fil], [f.get("type", "").upper() for f in fil],
-                                    [float(f["used_g"]) for f in fil])}
+                                    fil_g)}

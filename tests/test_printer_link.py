@@ -191,3 +191,31 @@ def test_printer_thumbnails(admin, anon, printer):
         assert anon.get("/printer/thumb", query_string={"file": "Тест кубик.gcode"}).status_code == 302
     finally:
         Moonraker.STATE = "printing"
+
+
+def test_security_and_edge_cases(admin, anon, monkeypatch):
+    """Регрессии аудита: SSRF-хосты принтера, кавычки в имени G-code, мусор в minutes/slicer/labelpng."""
+    import sys
+    import labelpng
+    import slicer
+    vp = sys.modules["views.printer"]
+    monkeypatch.setattr(filament.app, "testing", False)
+    assert not vp._valid_printer_host("127.0.0.1")
+    assert not vp._valid_printer_host("localhost")
+    assert not vp._valid_printer_host("169.254.169.254")
+    assert vp._valid_printer_host("192.168.1.50")
+    assert not vp.PRINT_FILE.fullmatch('bad"name.gcode')
+    assert not vp.PRINT_FILE.fullmatch("bad\r\nname.gcode")
+    assert vp.PRINT_FILE.fullmatch("part_1.gcode.3mf")
+    # нечисловой minutes в API не даёт 500
+    filament.update_config(printer_token="tok")
+    r = anon.post("/api/printer/job", json={"job_id": "j1", "weights": [10], "minutes": "abc"},
+                  headers={"Authorization": "Bearer tok"})
+    assert r.status_code == 400
+    # битый XML в slicer.parse_slice_info не роняет разбор
+    res = slicer.parse_slice_info('<plate><metadata key="weight" value="NaN"/><metadata key="prediction" value="bad"/>'
+                                  '<filament used_g="oops" type="PLA"/></plate>')
+    assert res["grams"] is None and res["minutes"] is None
+    # маленькая этикетка с длинным URL не падает с ValueError
+    png = labelpng.render("https://example.com/" + "a" * 120, [("PLA", 0.3)], width_mm=20, height_mm=10)
+    assert png.startswith(PNG)

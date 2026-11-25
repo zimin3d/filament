@@ -13,6 +13,7 @@ os.environ["FILAMENT_DATA"] = DATA
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import app as filament  # noqa: E402
+filament.app.testing = True
 from PIL import Image  # noqa: E402
 from werkzeug.security import generate_password_hash  # noqa: E402
 

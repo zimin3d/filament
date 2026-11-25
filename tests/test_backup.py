@@ -11,12 +11,20 @@ import verify_backup  # noqa: E402
 
 
 def make_archive(path, drop_photo=False):
-    with tarfile.open(path, "w:gz") as tar:
-        tar.add(filament.DB_PATH, "filament.db")
-        tar.add(filament.CONFIG_PATH, "config.json")
-        for name in os.listdir(filament.UPLOAD_DIR):
-            if not drop_photo:
-                tar.add(os.path.join(filament.UPLOAD_DIR, name), "uploads/" + name)
+    import sqlite3
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        snap = os.path.join(tmp, "filament.db")
+        src, dst = sqlite3.connect(filament.DB_PATH), sqlite3.connect(snap)
+        src.backup(dst)
+        dst.close()
+        src.close()
+        with tarfile.open(path, "w:gz") as tar:
+            tar.add(snap, "filament.db")
+            tar.add(filament.CONFIG_PATH, "config.json")
+            for name in os.listdir(filament.UPLOAD_DIR):
+                if not drop_photo:
+                    tar.add(os.path.join(filament.UPLOAD_DIR, name), "uploads/" + name)
 
 
 def test_verify_ok_and_missing_photo(admin, tmp_path):

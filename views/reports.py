@@ -98,14 +98,12 @@ def showcase(token):
 @app.route("/showcase-settings", methods=["POST"])
 @admin_required
 def showcase_settings():
-    cfg = load_config()
     if request.form.get("action") == "off":
-        cfg.pop("showcase_token", None)
+        update_config(showcase_token=None)
         flash("Витрина выключена — старая ссылка больше не работает.", "ok")
     else:
-        cfg["showcase_token"] = secrets.token_urlsafe(12)
+        update_config(showcase_token=secrets.token_urlsafe(12))
         flash("Новая ссылка на витрину создана (старая перестала работать).", "ok")
-    save_config(cfg)
     return redirect(url_for("stock") + "#showcase")
 
 

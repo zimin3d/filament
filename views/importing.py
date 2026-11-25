@@ -31,9 +31,7 @@ def import_start():
                 if photo_error:
                     flash("Данные загружены, но фото — нет: %s" % photo_error, "error")
                 if url != saved_url:
-                    cfg = load_config()
-                    cfg["sheet_url"] = url
-                    save_config(cfg)
+                    update_config(sheet_url=url)
             else:
                 raise importer.SheetError("Укажите ссылку на таблицу или выберите файл (Excel или CSV).")
         except importer.SheetError as e:
@@ -86,9 +84,7 @@ def import_preview(token):
         elif not todo and not photo_only and not updates:
             flash("Нечего импортировать.", "error")
         else:
-            cfg = load_config()
-            cfg["import_mapping"] = {"header": header, "mapping": mapping}
-            save_config(cfg)
+            update_config(import_mapping={"header": header, "mapping": mapping})
             flash(apply_import(token, plan), "ok")
             return redirect(url_for("index", status="all"))
 

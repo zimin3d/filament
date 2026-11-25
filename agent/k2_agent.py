@@ -40,7 +40,8 @@ def job_payload(job):
     """Запись истории Moonraker -> данные для учёта. Граммы — по филаментам, если слайсер их указал;
     для отменённых печатей — пропорционально реально израсходованной длине."""
     meta = job.get("metadata") if isinstance(job.get("metadata"), dict) else {}
-    weights = [num(w) for w in meta.get("filament_weights") or [] if isinstance(meta.get("filament_weights"), list)]
+    raw_weights = meta.get("filament_weights")
+    weights = [num(w) for w in raw_weights] if isinstance(raw_weights, list) else []
     if not any(weights) and num(meta.get("filament_weight_total")):
         weights = [num(meta["filament_weight_total"])]
     used_mm, total_mm = num(job.get("filament_used")), num(meta.get("filament_total"))
@@ -92,17 +93,18 @@ def poll(args, state):
     jobs = jobs.get("result", {}).get("jobs", [])
     if state is None:  # первый запуск: всё старое считаем отправленным
         keep = jobs[:args.backfill] if args.backfill else []
-        state = {"sent": [j["job_id"] for j in jobs if j not in keep]}
+        state = {"sent": [j["job_id"] for j in jobs if isinstance(j, dict) and j.get("job_id") and j not in keep]}
         save_state(state)
     for job in reversed(jobs):
-        if job["job_id"] in state["sent"] or job.get("status") not in FINAL:
+        jid = job.get("job_id") if isinstance(job, dict) else None
+        if not jid or jid in state["sent"] or job.get("status") not in FINAL:
             continue
         payload = job_payload(job)
         if payload["weights"]:
             result = send(args.server, args.token, payload)
             print(datetime.now().strftime("%H:%M"), payload["name"], payload["weights"], "г",
                   "→ списано" if result.get("auto") else "→ во входящих", flush=True)
-        state["sent"] = (state["sent"] + [job["job_id"]])[-500:]
+        state["sent"] = (state["sent"] + [jid])[-500:]
         save_state(state)
     return state
 

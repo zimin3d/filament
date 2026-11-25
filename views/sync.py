@@ -158,8 +158,8 @@ def _run_sync(transport):
         db.execute("DELETE FROM sync_state WHERE k = 'applying'")
         db.commit()
     local_after = int(sync.state(db, "local_seq", 0))
-    mine = sync.export(db, local_after)
     local_mark = sync.last_seq(db)
+    mine = sync.export(db, local_after, up_to=local_mark)
     have = sorted(f for f in os.listdir(UPLOAD_DIR) if sync.FILE_RE.fullmatch(f)) if os.path.isdir(UPLOAD_DIR) else []
     resp = json.loads(transport("api/sync", {"after": after, "changes": mine, "files": have}))
     if not resp.get("ok"):
@@ -250,10 +250,10 @@ def sync_page():
                 sync.set_state(db, "server_seq", 0)
                 sync.set_state(db, "local_seq", 0)
                 db.commit()
-            cfg["sync_url"] = url
+            changes = {"sync_url": url}
             if request.form.get("token", "").strip():
-                cfg["sync_token"] = request.form["token"].strip()
-            save_config(cfg)
+                changes["sync_token"] = request.form["token"].strip()
+            update_config(**changes)
             flash("Сохранено.", "ok")
         elif PHONE and action == "run":
             try:
@@ -281,10 +281,10 @@ def sync_page():
                 return redirect(url_for("sync_page"))
             return redirect(url_for("changes"))
         elif not PHONE and action == "token":
-            cfg["sync_token"] = secrets.token_urlsafe(24)
-            save_config(cfg)
+            token = secrets.token_urlsafe(24)
+            update_config(sync_token=token)
             flash("Новый ключ создан — старый больше не действует.", "ok")
-            return render_template("sync.html", phone=False, token=cfg["sync_token"], has_token=True,
+            return render_template("sync.html", phone=False, token=token, has_token=True,
                                    releases_url=RELEASES_URL)
         return redirect(url_for("sync_page"))
     return render_sync(db, cfg)

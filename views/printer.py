@@ -1,9 +1,10 @@
 """Принтер: API агента, входящие задания, импорт истории, обслуживание, разбор файлов слайсера."""
-import functools
+import ipaddress
 import json
 import os
 import re
 import secrets
+import threading
 import time
 import uuid
 from datetime import date
@@ -154,6 +155,9 @@ def accept_printer_job(data):
         weights = [round(float(w), 1) for w in raw_weights[:16] if float(w) > 0]
         if any(w > 10000 for w in weights):
             raise ValueError
+        minutes = int(data["minutes"]) if data.get("minutes") not in (None, "") else None
+        if minutes is not None and minutes < 0:
+            raise ValueError
     except (TypeError, ValueError):
         return {"ok": False, "error": "weights — список чисел, граммы"}
     if not ext_id or not weights:
@@ -162,15 +166,16 @@ def accept_printer_job(data):
     if db.execute("SELECT 1 FROM inbox WHERE ext_id = ?", (ext_id,)).fetchone():
         return {"ok": True, "duplicate": True}
     name = re.sub(r"(\.gcode)?(\.3mf)?$", "", str(data.get("name") or ""))[:200]
-    minutes = int(data["minutes"]) if data.get("minutes") else None
     day = str(data.get("day") or date.today().isoformat())[:10]
     status = str(data.get("status") or "")[:20]
     if status and status != "completed":
         name = "%s (%s)" % (name, {"cancelled": "отменена", "error": "ошибка"}.get(status, status))
     spool = printer_spool()
     auto = len(weights) == 1 and spool is not None
-    db.execute("INSERT INTO inbox (ext_id, day, name, minutes, weights, status, printer_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-               (ext_id, day, name, minutes, json.dumps(weights), "done" if auto else "pending", status))
+    cur = db.execute("INSERT OR IGNORE INTO inbox (ext_id, day, name, minutes, weights, status, printer_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     (ext_id, day, name, minutes, json.dumps(weights), "done" if auto else "pending", status))
+    if cur.rowcount == 0:
+        return {"ok": True, "duplicate": True}
     if auto:
         audit_state = audit_begin(spool["id"])
         record_job(db, spool["id"], day, name, weights[0], minutes)
@@ -198,14 +203,28 @@ def inbox():
             db.execute("UPDATE inbox SET status = 'skipped' WHERE id = ?", (item["id"],))
         else:
             weights = json.loads(item["weights"])
-            for i, w in enumerate(weights):
-                sid = request.form.get("spool_%d" % i, type=int)
-                grams = request.form.get("grams_%d" % i, "").replace(",", ".")
-                if sid:
+            parsed = []
+            try:
+                for i, w in enumerate(weights):
+                    sid = request.form.get("spool_%d" % i, type=int)
+                    raw_g = request.form.get("grams_%d" % i, "").replace(",", ".").replace(" ", "")
+                    g = float(raw_g) if raw_g else w
+                    if sid:
+                        if g <= 0 or g > 10000:
+                            raise ValueError("Граммы должны быть больше нуля.")
+                        parsed.append((i, sid, g))
+            except ValueError as e:
+                flash(str(e) if "Граммы" in str(e) else "Введите вес числом, в граммах.", "error")
+                return redirect(url_for("inbox"))
+            try:
+                for i, sid, g in parsed:
                     audit_state = audit_begin(sid)
-                    record_job(db, sid, item["day"], item["name"], float(grams) if grams else w,
-                               item["minutes"] if i == 0 else None)
+                    record_job(db, sid, item["day"], item["name"], g, item["minutes"] if i == 0 else None)
                     audit_end("Печать с принтера", sid, audit_state)
+            except ValueError as e:
+                db.rollback()
+                flash(str(e), "error")
+                return redirect(url_for("inbox"))
             db.execute("UPDATE inbox SET status = 'done' WHERE id = ?", (item["id"],))
         db.commit()
         flash("Готово.", "ok")
@@ -220,14 +239,12 @@ def inbox():
 @app.route("/spool/<int:spool_id>/on-printer", methods=["POST"])
 @admin_required
 def spool_on_printer(spool_id):
-    cfg = load_config()
-    if cfg.get("printer_spool") == spool_id:
-        cfg.pop("printer_spool")
+    if load_config().get("printer_spool") == spool_id:
+        update_config(printer_spool=None)
         flash("Катушка снята с принтера.", "ok")
     else:
-        cfg["printer_spool"] = spool_id
+        update_config(printer_spool=spool_id)
         flash("Отмечено: эта катушка на принтере — однокрасочные печати будут списываться с неё.", "ok")
-    save_config(cfg)
     return redirect(url_for("spool_detail", spool_id=spool_id))
 
 
@@ -264,6 +281,38 @@ def jobs():
 PRINTER_TIMEOUT = 5
 PRINTER_STATES = {"standby": "ожидает", "printing": "печатает", "paused": "пауза", "complete": "готово",
                   "cancelled": "отменено", "error": "ошибка"}
+_poll_lock = threading.Lock()
+_thumb_lock = threading.Lock()
+_thumb_cache = {}
+THUMB_CACHE_MAX = 32
+THUMB_MAX_BYTES = 512_000
+
+
+def _no_redirect_open(req, timeout=PRINTER_TIMEOUT):
+    import urllib.request
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **kw):
+            raise ValueError("Принтер вернул перенаправление — отклонено.")
+
+    return urllib.request.build_opener(_NoRedirect()).open(req, timeout=timeout)
+
+
+def _valid_printer_host(host):
+    if not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", host):
+        return False
+    if app.testing:
+        return True
+    low = host.lower().rstrip(".")
+    if low == "localhost" or low.endswith(".localhost"):
+        return False
+    try:
+        ip = ipaddress.ip_address(low)
+        if ip.is_loopback or ip.is_link_local or ip.is_unspecified:
+            return False
+    except ValueError:
+        pass
+    return True
 
 
 def printer_addr(cfg=None):
@@ -273,11 +322,10 @@ def printer_addr(cfg=None):
 
 
 def moonraker(path, cfg=None):
-    import urllib.request
     base = printer_addr(cfg)
     if not base:
         raise ValueError("Адрес принтера не задан.")
-    with urllib.request.urlopen(base + path, timeout=PRINTER_TIMEOUT) as r:
+    with _no_redirect_open(base + path, timeout=PRINTER_TIMEOUT) as r:
         return json.loads(r.read(2_000_000)).get("result") or {}
 
 
@@ -288,11 +336,11 @@ def moonraker_post(path, body=b"", ctype=None, cfg=None, timeout=PRINTER_TIMEOUT
     if not base:
         raise ValueError("Адрес принтера не задан.")
     req = urllib.request.Request(base + path, data=body, method="POST", headers={"Content-Type": ctype} if ctype else {})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with _no_redirect_open(req, timeout=timeout) as r:
         return json.loads(r.read(2_000_000) or b"{}").get("result")
 
 
-PRINT_FILE = re.compile(r"[^/\\][^\\]*\.(gcode|gco|gcode\.3mf)", re.I)  # имя файла на принтере, без «..» и «/» в начале
+PRINT_FILE = re.compile(r'[^/\\"\x00-\x1f][^\\"\x00-\x1f]{0,199}\.(gcode|gco|gcode\.3mf)', re.I)  # имя файла на принтере, без «..», «/» в начале, кавычек и переводов строк
 
 
 def printer_files(cfg):
@@ -302,14 +350,16 @@ def printer_files(cfg):
     return sorted(files, key=lambda f: -float(f.get("modified") or 0))[:40]
 
 
-@functools.lru_cache(maxsize=64)
 def printer_thumb_bytes(base, name, modified):
     """Миниатюра G-code с принтера (её вырезает Moonraker из файла). modified — в ключе кэша: файл заменили — новая."""
     import posixpath
     import urllib.parse
-    import urllib.request
-    with urllib.request.urlopen(base + "/server/files/metadata?filename=" + urllib.parse.quote(name),
-                                timeout=PRINTER_TIMEOUT) as r:
+    key = (base, name, modified)
+    with _thumb_lock:
+        if key in _thumb_cache:
+            return _thumb_cache[key]
+    with _no_redirect_open(base + "/server/files/metadata?filename=" + urllib.parse.quote(name),
+                           timeout=PRINTER_TIMEOUT) as r:
         meta = json.loads(r.read(2_000_000)).get("result") or {}
     thumbs = [t for t in meta.get("thumbnails") or [] if isinstance(t, dict) and t.get("relative_path")]
     if not thumbs:
@@ -320,9 +370,15 @@ def printer_thumb_bytes(base, name, modified):
     rel = posixpath.normpath(posixpath.join(posixpath.dirname(name), str(t["relative_path"])))
     if rel.startswith(("..", "/")):
         return b""
-    with urllib.request.urlopen(base + "/server/files/gcodes/" + urllib.parse.quote(rel), timeout=PRINTER_TIMEOUT) as r:
-        data = r.read(2_000_000)
-    return data if data[:8] == b"\x89PNG\r\n\x1a\n" or data[:3] == b"\xff\xd8\xff" else b""
+    with _no_redirect_open(base + "/server/files/gcodes/" + urllib.parse.quote(rel), timeout=PRINTER_TIMEOUT) as r:
+        data = r.read(THUMB_MAX_BYTES + 1)
+    if len(data) > THUMB_MAX_BYTES or not (data[:8] == b"\x89PNG\r\n\x1a\n" or data[:3] == b"\xff\xd8\xff"):
+        return b""
+    with _thumb_lock:
+        if len(_thumb_cache) >= THUMB_CACHE_MAX:
+            _thumb_cache.pop(next(iter(_thumb_cache)))
+        _thumb_cache[key] = data
+    return data
 
 
 @app.route("/printer/thumb")
@@ -332,8 +388,11 @@ def printer_thumb():
     cfg, name = load_config(), request.args.get("file", "")
     if is_bambu(cfg) or not printer_addr(cfg) or ".." in name or not PRINT_FILE.fullmatch(name):
         abort(404)
+    mod = request.args.get("m", "")
+    if not re.fullmatch(r"[0-9.]{0,32}", mod):
+        mod = ""
     try:
-        data = printer_thumb_bytes(printer_addr(cfg), name, request.args.get("m", ""))
+        data = printer_thumb_bytes(printer_addr(cfg), name, mod)
     except (OSError, ValueError):
         abort(404)
     if not data:
@@ -407,26 +466,31 @@ def printer_live():
 def poll_printer():
     """Новые законченные печати из истории принтера → учёт (как от агента). Печати, закончившиеся
     до подключения принтера, не трогаем. Возвращает (списано, во входящих)."""
-    cfg = load_config()
-    if is_bambu(cfg):
-        return poll_bambu(cfg)
-    since = float(cfg.get("printer_since") or 0)
-    agent = agent_module()
-    jobs_ = moonraker("/server/history/list?limit=50&order=desc", cfg).get("jobs") or []
-    auto = pending = 0
-    for job in reversed(jobs_):
-        if not isinstance(job, dict) or job.get("status") not in agent.FINAL:
-            continue
-        if float(job.get("end_time") or 0) <= since:
-            continue
-        payload = agent.job_payload(job)
-        if not payload["weights"]:
-            continue
-        r = accept_printer_job(payload)
-        if r.get("ok") and not r.get("duplicate"):
-            auto, pending = auto + bool(r.get("auto")), pending + (not r.get("auto"))
-    update_config(printer_checked=time.strftime("%Y-%m-%d %H:%M"))
-    return auto, pending
+    if not _poll_lock.acquire(timeout=PRINTER_TIMEOUT * 2):
+        raise ValueError("Опрос принтера уже идёт.")
+    try:
+        cfg = load_config()
+        if is_bambu(cfg):
+            return poll_bambu(cfg)
+        since = float(cfg.get("printer_since") or 0)
+        agent = agent_module()
+        jobs_ = moonraker("/server/history/list?limit=50&order=desc", cfg).get("jobs") or []
+        auto = pending = 0
+        for job in reversed(jobs_):
+            if not isinstance(job, dict) or job.get("status") not in agent.FINAL:
+                continue
+            if float(job.get("end_time") or 0) <= since:
+                continue
+            payload = agent.job_payload(job)
+            if not payload["weights"]:
+                continue
+            r = accept_printer_job(payload)
+            if r.get("ok") and not r.get("duplicate"):
+                auto, pending = auto + bool(r.get("auto")), pending + (not r.get("auto"))
+        update_config(printer_checked=time.strftime("%Y-%m-%d %H:%M"))
+        return auto, pending
+    finally:
+        _poll_lock.release()
 
 
 def poll_bambu(cfg):
@@ -477,20 +541,20 @@ def printer_link():
             port = request.form.get("port", "").strip() or "7125"
             serial = request.form.get("serial", "").strip().upper()
             code = request.form.get("code", "").strip()
-            if host and not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", host) or not port.isdigit() or not 0 < int(port) < 65536:
-                flash("Адрес — IP или имя (например 192.168.1.50), порт — число.", "error")
+            if host and not _valid_printer_host(host) or not port.isdigit() or not 0 < int(port) < 65536:
+                flash("Адрес — IP или имя принтера в локальной сети (например 192.168.1.50), порт — число.", "error")
                 return redirect(url_for("printer_link"))
             if kind == "bambu" and host and (not re.fullmatch(r"[0-9A-Z]{8,20}", serial)
                                              or not (code or cfg.get("bambu_code"))):
                 flash("Для Bambu Lab нужны серийный номер (на наклейке или в Настройках принтера) и код доступа LAN.", "error")
                 return redirect(url_for("printer_link"))
+            changes = dict(printer_kind=kind, printer_host=host, printer_port=int(port), bambu_serial=serial)
             if host != cfg.get("printer_host") or kind != cfg.get("printer_kind", "klipper"):
-                cfg["printer_since"] = time.time()  # новый принтер: старую историю не списываем
-                cfg.pop("bambu_job", None)
-            cfg.update(printer_kind=kind, printer_host=host, printer_port=int(port), bambu_serial=serial)
+                changes["printer_since"] = time.time()  # новый принтер: старую историю не списываем
+                changes["bambu_job"] = None
             if code:
-                cfg["bambu_code"] = code
-            save_config(cfg)
+                changes["bambu_code"] = code
+            update_config(**changes)
             flash("Сохранено." if host else "Связь с принтером отключена.", "ok")
         elif action in ("start", "upload", "pause", "resume", "cancel"):
             if is_bambu(cfg):

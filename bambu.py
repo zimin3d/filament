@@ -77,7 +77,11 @@ def _read_packet(sock):
 def report(host, serial, code, timeout=TIMEOUT, port=MQTT_PORT, tls=True):
     """Полное состояние принтера (раздел «print» отчёта). tls=False — только для тестов."""
     raw = socket.create_connection((host, port), timeout=timeout)
-    sock = _tls().wrap_socket(raw, server_hostname=host) if tls else raw
+    try:
+        sock = _tls().wrap_socket(raw, server_hostname=host) if tls else raw
+    except Exception:
+        raw.close()
+        raise
     try:
         sock.settimeout(timeout)
         connect = _str("MQTT") + bytes([4, 0xC2]) + struct.pack("!H", 60)
@@ -92,6 +96,7 @@ def report(host, serial, code, timeout=TIMEOUT, port=MQTT_PORT, tls=True):
         sock.sendall(_packet(0x30, _str("device/%s/request" % serial) + request))
         deadline = time.time() + timeout
         while time.time() < deadline:
+            sock.settimeout(max(0.1, deadline - time.time()))
             kind, body = _read_packet(sock)
             if kind >> 4 != 3:
                 continue
@@ -124,7 +129,11 @@ def live(p):
             if not t.get("tray_type"):
                 continue
             color = str(t.get("tray_color") or "")[:6]
-            trays.append({"slot": "%d-%d" % (int(unit.get("id", 0)) + 1, int(t.get("id", 0)) + 1),
+            try:
+                slot = "%d-%d" % (int(unit.get("id") or 0) + 1, int(t.get("id") or 0) + 1)
+            except (TypeError, ValueError):
+                slot = "%s-%s" % (unit.get("id") or "?", t.get("id") or "?")
+            trays.append({"slot": slot,
                           "type": t.get("tray_type"), "color": "#" + color.lower() if len(color) == 6 else "",
                           "remain": t.get("remain") if isinstance(t.get("remain"), int) and t["remain"] >= 0 else None})
     return {"state": STATES.get(state, state.lower() or "?"),
@@ -181,7 +190,11 @@ class _ImplicitFTPS(ftplib.FTP_TLS):
     def ntransfercmd(self, cmd, rest=None):
         conn, size = ftplib.FTP.ntransfercmd(self, cmd, rest)
         if self._prot_p:
-            conn = self.context.wrap_socket(conn, server_hostname=self.host, session=self.sock.session)
+            try:
+                conn = self.context.wrap_socket(conn, server_hostname=self.host, session=self.sock.session)
+            except Exception:
+                conn.close()
+                raise
         return conn, size
 
 

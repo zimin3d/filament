@@ -76,8 +76,13 @@ def logout():
 
 @app.errorhandler(413)
 def too_large(e):
-    flash("Файл слишком большой (максимум 15 МБ).", "error")
-    return redirect(request.referrer or url_for("index"))
+    from urllib.parse import urlsplit
+    limit = (request.max_content_length or app.config["MAX_CONTENT_LENGTH"]) // (1024 * 1024)
+    flash("Файл слишком большой (максимум %d МБ)." % limit, "error")
+    ref = request.referrer or ""
+    p = urlsplit(ref)
+    target = (p.path + ("?" + p.query if p.query else "")) if p.netloc == request.host else ""
+    return redirect(target if safe_next(target) else url_for("index"))
 
 
 @app.route("/help")
@@ -97,7 +102,8 @@ def theme():
     if not safe_next(back):
         back = url_for("index")
     resp = redirect(back)
-    resp.set_cookie("theme", nxt, max_age=365 * 86400, samesite="Lax", httponly=True)
+    resp.set_cookie("theme", nxt, max_age=365 * 86400, samesite="Lax", httponly=True,
+                    secure=app.config["SESSION_COOKIE_SECURE"])
     return resp
 
 

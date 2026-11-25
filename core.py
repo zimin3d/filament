@@ -7,6 +7,7 @@ import os
 import secrets
 import sqlite3
 import tempfile
+import threading
 from datetime import date
 from functools import wraps
 
@@ -215,17 +216,21 @@ def load_config(fresh=False):
     return cfg
 
 
+_cfg_lock = threading.Lock()
+
+
 def update_config(**changes):
     """Правка config поверх свежего с диска (после долгих сетевых вызовов не затирает чужие правки).
     None — удалить ключ. Возвращает сохранённый config."""
-    cfg = load_config(fresh=True)
-    for k, v in changes.items():
-        if v is None:
-            cfg.pop(k, None)
-        else:
-            cfg[k] = v
-    save_config(cfg)
-    return cfg
+    with _cfg_lock:
+        cfg = load_config(fresh=True)
+        for k, v in changes.items():
+            if v is None:
+                cfg.pop(k, None)
+            else:
+                cfg[k] = v
+        save_config(cfg)
+        return cfg
 
 
 def save_config(cfg):
@@ -260,6 +265,8 @@ def get_db():
     if "db" not in g:
         g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA busy_timeout = 15000")
+        g.db.execute("PRAGMA foreign_keys = ON")
         # LIKE в SQLite без учёта регистра только для латиницы — для кириллицы своя функция
         g.db.create_function("ulower", 1, lambda v: v.lower() if isinstance(v, str) else v, deterministic=True)
     return g.db
@@ -275,6 +282,7 @@ def close_db(exc):
 def init_db():
     os.makedirs(DATA_DIR, exist_ok=True)
     with sqlite3.connect(DB_PATH) as db:
+        db.execute("PRAGMA journal_mode = WAL")
         db.executescript(SCHEMA)
         cols = {r[1] for r in db.execute("PRAGMA table_info(spools)")}
         if "number" not in cols:  # миграция: номер-наклейка на катушке
@@ -441,7 +449,7 @@ def login_failed(ip):
 
 @app.before_request
 def check_csrf():
-    if request.endpoint == "printer_link":  # загрузка G-code на принтер: файлы больше общего лимита 15 МБ
+    if request.endpoint == "printer_link" and is_admin():  # загрузка G-code на принтер: файлы больше общего лимита 15 МБ
         request.max_content_length = 512 * 1024 * 1024
     if request.method == "POST" and not request.path.startswith("/api/"):  # API — по токену
         token = request.form.get("csrf")
@@ -536,8 +544,13 @@ def duration(minutes):
 @app.template_filter("ts_date")
 def ts_date(ts):
     """Метка времени Unix (Moonraker) -> «06.11.2026 21:17»."""
+    if ts is None or ts == "":
+        return "—"
     from datetime import datetime
-    return datetime.fromtimestamp(float(ts)).strftime("%d.%m.%Y %H:%M")
+    try:
+        return datetime.fromtimestamp(float(ts)).strftime("%d.%m.%Y %H:%M")
+    except (TypeError, ValueError, OSError, OverflowError):
+        return "—"
 
 
 @app.template_filter("ru_date")

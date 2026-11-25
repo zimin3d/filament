@@ -65,7 +65,7 @@ def render(data, color="#4f8cff", size=400):
     while stack:
         depth, (a, b, c), shade = stack.pop()
         longest = max(math.dist(a, b), math.dist(b, c), math.dist(c, a))
-        if longest > limit and len(small) + len(stack) < MAX_FACES:
+        if limit > 0 and longest > limit and len(small) + len(stack) < MAX_FACES:
             ab, bc, ca = (tuple((p + q) / 2 for p, q in zip(u, v)) for u, v in ((a, b), (b, c), (c, a)))
             for t in ((a, ab, ca), (ab, b, bc), (ca, bc, c), (ab, bc, ca)):
                 stack.append(((t[0][1] + t[1][1] + t[2][1]) / 3, t, shade))

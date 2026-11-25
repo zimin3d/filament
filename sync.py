@@ -41,16 +41,21 @@ def setup(db):
             db.execute("ALTER TABLE %s ADD COLUMN uid TEXT" % t)
         db.execute("UPDATE %s SET uid = %s WHERE uid IS NULL" % (t, NEW_UID))
         db.execute("CREATE UNIQUE INDEX IF NOT EXISTS %s_uid ON %s (uid)" % (t, t))
-        log = ("INSERT OR REPLACE INTO sync_log (tbl, uid, ts) VALUES ('%s', %%s, julianday('now'))" % t)
+        log = ("DELETE FROM sync_log WHERE tbl = '%s' AND uid = %%s; "
+               "INSERT INTO sync_log (tbl, uid, ts) VALUES ('%s', %%s, julianday('now'))" % (t, t))
+        # пересоздаём триггеры (DELETE+INSERT вместо OR REPLACE — иначе падает внутри UPSERT ON CONFLICT DO UPDATE)
+        for ev in ("ins", "upd", "del"):
+            db.execute("DROP TRIGGER IF EXISTS %s_sync_%s" % (t, ev))
         # один триггер: сначала uid, потом журнал (порядок разных триггеров SQLite не гарантирует)
-        db.execute("CREATE TRIGGER IF NOT EXISTS %s_sync_ins AFTER INSERT ON %s BEGIN "
+        db.execute("CREATE TRIGGER %s_sync_ins AFTER INSERT ON %s BEGIN "
                    "UPDATE %s SET uid = %s WHERE rowid = NEW.rowid AND uid IS NULL; "
-                   "INSERT OR REPLACE INTO sync_log (tbl, uid, ts) SELECT '%s', uid, julianday('now') FROM %s "
-                   "WHERE rowid = NEW.rowid AND %s; END" % (t, t, t, NEW_UID, t, t, NOT_APPLYING))
-        db.execute("CREATE TRIGGER IF NOT EXISTS %s_sync_upd AFTER UPDATE ON %s WHEN %s AND NEW.uid IS NOT NULL "
-                   "BEGIN %s; END" % (t, t, NOT_APPLYING, log % "NEW.uid"))
-        db.execute("CREATE TRIGGER IF NOT EXISTS %s_sync_del AFTER DELETE ON %s WHEN %s AND OLD.uid IS NOT NULL "
-                   "BEGIN %s; END" % (t, t, NOT_APPLYING, log % "OLD.uid"))
+                   "DELETE FROM sync_log WHERE tbl = '%s' AND uid = (SELECT uid FROM %s WHERE rowid = NEW.rowid) AND %s; "
+                   "INSERT INTO sync_log (tbl, uid, ts) SELECT '%s', uid, julianday('now') FROM %s "
+                   "WHERE rowid = NEW.rowid AND %s; END" % (t, t, t, NEW_UID, t, t, NOT_APPLYING, t, t, NOT_APPLYING))
+        db.execute("CREATE TRIGGER %s_sync_upd AFTER UPDATE ON %s WHEN %s AND NEW.uid IS NOT NULL "
+                   "BEGIN %s; END" % (t, t, NOT_APPLYING, log % ("NEW.uid", "NEW.uid")))
+        db.execute("CREATE TRIGGER %s_sync_del AFTER DELETE ON %s WHEN %s AND OLD.uid IS NOT NULL "
+                   "BEGIN %s; END" % (t, t, NOT_APPLYING, log % ("OLD.uid", "OLD.uid")))
     if fresh:  # первая настройка: всё, что уже есть, считается изменённым — уйдёт при первой синхронизации
         for t in TABLES:
             db.execute("INSERT OR IGNORE INTO sync_log (tbl, uid, ts) SELECT '%s', uid, julianday('now') FROM %s"
@@ -75,11 +80,15 @@ def _columns(db, t):
     return [r[1] for r in db.execute("PRAGMA table_info(%s)" % t) if r[1] not in ("id", "uid")]
 
 
-def export(db, after):
-    """Текущее состояние строк, изменённых после seq=after: [{t, u, ts, row|del}], родители раньше детей."""
+def export(db, after, up_to=None):
+    """Текущее состояние строк, изменённых после seq=after (и не позже up_to): [{t, u, ts, row|del}], родители раньше детей."""
     rows, dels = [], []
     order = {t: i for i, t in enumerate(TABLES)}
-    entries = db.execute("SELECT tbl, uid, ts FROM sync_log WHERE seq > ? ORDER BY seq", (after,)).fetchall()
+    if up_to is not None:
+        entries = db.execute("SELECT tbl, uid, ts FROM sync_log WHERE seq > ? AND seq <= ? ORDER BY seq",
+                             (after, up_to)).fetchall()
+    else:
+        entries = db.execute("SELECT tbl, uid, ts FROM sync_log WHERE seq > ? ORDER BY seq", (after,)).fetchall()
     for tbl, uid, ts in sorted(entries, key=lambda e: order.get(e[0], 99)):
         if tbl not in order:
             continue
