@@ -16,9 +16,17 @@ cp "${MODS[@]}" "$ROOT/android/launcher.py" "$ROOT/CHANGELOG.md" "$PY/"
 cp -r "$ROOT"/{views,templates,static,fonts} "$PY/"
 mkdir -p "$PY/agent" && cp "$ROOT/agent/k2_agent.py" "$PY/agent/"  # разбор истории Moonraker
 find "$PY" -name __pycache__ -prune -exec rm -rf {} +
-# значок — тот же, что у сайта (Android сам масштабирует)
-mkdir -p "$RES/mipmap-xxxhdpi"
+# значок — тот же, что у сайта (legacy + adaptive icon для Android 8+)
+mkdir -p "$RES/mipmap-xxxhdpi" "$RES/mipmap-anydpi-v26"
 cp "$ROOT/static/icon-192.png" "$RES/mipmap-xxxhdpi/ic_launcher.png"
+cp "$ROOT/static/icon-maskable-512.png" "$RES/mipmap-xxxhdpi/ic_launcher_foreground.png"
+cat > "$RES/mipmap-anydpi-v26/ic_launcher.xml" <<'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>
+EOF
 # проверка: приложение запускается из того, что попадёт в APK (как на телефоне)
 # (launcher — точка входа MainActivity; agent_module грузится лениво — проверяем, что файл на месте)
 if [ "${SKIP_CHECK:-}" != 1 ]; then
